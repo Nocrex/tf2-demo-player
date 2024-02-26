@@ -5,12 +5,14 @@ use crate::demo_manager::Demo;
 
 pub enum Command<'a> {
     PlayDemo(&'a Demo),
+    SkipToTick(u32),
 }
 
 impl Command<'_> {
     pub fn get_command(&self) -> String {
         match self {
-            Self::PlayDemo(d) => format!("playdemo \"{}\"", d.get_path())
+            Self::PlayDemo(d) => format!("playdemo \"{}\"", d.get_path()),
+            Self::SkipToTick(t) => format!("demo_gototick {}", t),
         }
     }
 }
@@ -58,6 +60,16 @@ impl RconManager {
         let conn = self.conn.as_mut().unwrap();
         let cmd = command.get_command();
         log::debug!("Sending command: {}", cmd);
-        conn.cmd(&cmd).await
+        let res = conn.cmd(&cmd).await;
+        log::debug!("Response: {:?}", res);
+        res
+    }
+
+    pub async fn play_demo(&mut self, demo: &Demo) -> Result<String, Error>{
+        self.send_command(Command::PlayDemo(demo)).await
+    }
+
+    pub async fn skip_to_tick(&mut self, tick: u32) -> Result<String, Error> {
+        self.send_command(Command::SkipToTick(tick)).await
     }
 }

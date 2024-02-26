@@ -10,7 +10,11 @@ pub fn sec_to_timestamp(sec: f32) -> String {
     let secs = sec.round() as u32 % 60;
     let mins = (sec / 60.0).trunc() as u32 % 60;
     let hrs = (sec / 3600.0).trunc() as u32;
-    format!("{:0>2}:{:0>2}:{:0>2}", hrs, mins, secs)
+    if hrs > 0 {
+        format!("{:0>2}:{:0>2}:{:0>2}", hrs, mins, secs)
+    } else {
+        format!("{:0>2}:{:0>2}", mins, secs)
+    }
 }
 
 pub fn timestamp_to_sec(ts: String) -> f32 {

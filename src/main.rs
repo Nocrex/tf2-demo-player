@@ -5,7 +5,7 @@ mod settings;
 use settings::Settings;
 
 mod rcon_manager;
-use rcon_manager::{Command, RconManager};
+use rcon_manager::RconManager;
 
 mod util;
 
@@ -15,22 +15,14 @@ use ui::UI;
 #[tokio::main]
 async fn main() {
     env_logger::init();
-    let mut settings = Settings::load();
+    let settings = Settings::load();
 
-    let mut rcon_manager = RconManager::new(settings.rcon_pw);
+    let rcon_manager = RconManager::new(settings.rcon_pw.clone());
 
     let mut dem_mgr = DemoManager::new();
-    dem_mgr.load_demos(&settings.demo_folder_path);
+    dem_mgr.load_demos(&settings.demo_folder_path).await;
 
-    /*let first_demo = dem_mgr.get_demos().get(0).unwrap();
-
-    log::debug!("Attempting to play {}", first_demo.filename);
-
-    let res = rcon_manager.send_command(Command::PlayDemo(first_demo)).await;
-
-    log::debug!("{:?}", res);*/
-
-    let ui = UI::new();
+    let ui = UI::new(rcon_manager, dem_mgr, settings);
 
     ui.run();
 }
