@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use gtk::gio::{ApplicationFlags, ListStore};
 use gtk::glib::{Object, clone};
-use gtk::{glib, prelude::*, Adjustment, AlertDialog, Application, ApplicationWindow, Box, Button, ColumnView, ColumnViewColumn, FileDialog, Grid, HeaderBar, Label, ListItem, Notebook, Paned, Scale, ScrolledWindow, SignalListItemFactory, SingleSelection};
+use gtk::{glib, prelude::*, Adjustment, AlertDialog, Application, ApplicationWindow, Box, Button, ColumnView, ColumnViewColumn, Entry, FileDialog, Frame, Grid, HeaderBar, Label, ListItem, Notebook, Paned, Scale, ScrolledWindow, SignalListItemFactory, SingleSelection, TextView};
 
 use crate::demo_manager::{Demo, DemoManager};
 use crate::rcon_manager::RconManager;
@@ -89,9 +89,8 @@ impl UI {
 
             let (demo_scroll, selection) = Self::build_demo_list();
 
-            let update_demos = Rc::new(clone!(@weak demo_scroll, @weak demos => move || {
-                let cv = demo_scroll.child().and_downcast::<ColumnView>().unwrap();
-                let sel_model = cv.model().unwrap().downcast::<SingleSelection>().unwrap().model().unwrap();
+            let update_demos = Rc::new(clone!(@weak selection, @weak demos => move || {
+                let sel_model = selection.model().unwrap();
                 let demo_model = sel_model.downcast_ref::<ListStore>().unwrap();
                 demo_model.remove_all();
 
@@ -102,7 +101,7 @@ impl UI {
 
             update_demos();
 
-            let grid = Grid::builder().column_homogeneous(false).margin_end(15).build();
+            let grid = Grid::builder().column_homogeneous(false).margin_end(5).build();
 
             let playhead = Scale::builder().orientation(gtk::Orientation::Horizontal).hexpand(true).build();
             playhead.set_range(0.0, 100.0);
@@ -117,19 +116,17 @@ impl UI {
                 timestamp_label.set_label(format!("{}\ntick {}", sec_to_timestamp(secs).as_str(), ph.value() as u32).as_str());
             }));
 
-            let deets = Label::new(None);
-            deets.set_halign(gtk::Align::Start);
-            let deets_w = ScrolledWindow::builder().child(&deets).hexpand(true).vexpand(true).build();
+            let detail_tabs = Notebook::builder().show_border(true).build();
+            
+            let (detail_view, update_detail_view) = Self::build_detail_view();
 
-            let detail_tabs = Notebook::builder().show_border(false).build();
+            detail_tabs.append_page(&detail_view, Some(&Label::new(Some(&"Details"))));
             
-            detail_tabs.append_page(&deets_w, Some(&Label::new(Some(&"Details"))));
-            
-            detail_tabs.append_page(&Label::new(Some(&"test")), Some(&Label::new(Some(&"Bookmarks"))));
+            detail_tabs.append_page(&Label::new(Some(&"test")), Some(&Label::new(Some(&"Events"))));
 
             grid.attach(&detail_tabs, 0, 1, 1, 1);
             
-            let button_box = Box::builder().orientation(gtk::Orientation::Vertical).spacing(5).width_request(100).build();
+            let button_box = Box::builder().orientation(gtk::Orientation::Vertical).spacing(5).width_request(100).margin_start(5).build();
             grid.attach(&button_box, 1, 1, 1, 1);
 
             let play_button = Button::builder().label("Play").build();
@@ -169,20 +166,22 @@ impl UI {
             let seek_button = Button::builder().label("Seek").build();
             button_box.append(&seek_button);
 
-            seek_button.connect_clicked(clone!(@weak rcon, @weak playhead => move |_|{
-                glib::spawn_future_local(clone!(@weak rcon, @weak playhead => async move {
-                    let _ = rcon.borrow_mut().skip_to_tick(playhead.value() as u32).await;
+            seek_button.connect_clicked(clone!(@weak rcon, @weak playhead => move |b|{
+                glib::spawn_future_local(clone!(@weak rcon, @weak playhead, @weak b => async move {
+                    b.set_sensitive(false);
+                    let _ = rcon.borrow_mut().skip_to_tick(playhead.value() as u32, true).await;
+                    b.set_sensitive(true);
                 }));
             }));
 
-            selection.connect_selection_changed(clone!(@weak deets, @weak demos, @weak playhead => move|s,_,_|{
+            selection.connect_selection_changed(clone!(@strong update_detail_view, @weak demos, @weak playhead => move|s,_,_|{
                 let demos = demos.borrow();
                 if demos.get_demos().is_empty(){
                     playhead.set_value(0.0);
                     playhead.set_range(0.0, 1.0);
                     playhead.clear_marks();
                     playhead.set_sensitive(false);
-                    deets.set_label("");
+                    update_detail_view(None);
 
                     button_box.set_sensitive(false);
                     return;
@@ -190,7 +189,7 @@ impl UI {
                 button_box.set_sensitive(true);
                 playhead.set_sensitive(true);
                 let demo = demos.get_demos().get(s.selected() as usize).unwrap();
-                deets.set_label(format!("{:#?}", demos.get_demos().get(s.selected() as usize).unwrap()).as_str());
+                update_detail_view(Some(demos.get_demos().get(s.selected() as usize).unwrap().to_owned()));
                 playhead.set_value(0.0);
                 playhead.clear_marks();
                 playhead.set_range(0.0, demo.header.as_ref().unwrap().ticks as f64);
@@ -209,8 +208,8 @@ impl UI {
             let folderbutton = Button::builder().icon_name("folder-open").tooltip_text("Select demo folder").width_request(20).height_request(20).build();
             titlebar.pack_start(&folderbutton);
 
-            folderbutton.connect_clicked(clone!(@weak update_demos, @weak demos, @weak window, @weak settings => move|_|{
-                glib::spawn_future_local(clone!(@weak update_demos, @weak demos, @weak window, @weak settings => async move {
+            folderbutton.connect_clicked(clone!(@weak update_demos, @weak demos, @weak window, @weak settings, @weak selection => move|_|{
+                glib::spawn_future_local(clone!(@weak update_demos, @weak demos, @weak window, @weak settings, @weak selection => async move {
                     let dia = FileDialog::builder().build();
                     let res = dia.select_folder_future(Some(&window)).await;
                     if let Ok(file) = res{
@@ -218,8 +217,8 @@ impl UI {
                         settings.borrow().save();
                         demos.borrow_mut().load_demos(&settings.borrow().demo_folder_path).await;
                         update_demos();
+                        selection.emit_by_name::<()>("selection-changed", &[&0u32.to_value(),&0u32.to_value()]);
                     }
-
                 }));
             }));
 
@@ -228,6 +227,67 @@ impl UI {
             window.present();
         }));
         ui
+    }
+
+    fn build_detail_view() -> (ScrolledWindow, Rc<std::boxed::Box<dyn Fn(Option<Demo>)>>) {
+        let grid = Grid::builder().column_homogeneous(false).row_homogeneous(false).row_spacing(10).column_spacing(20).margin_end(10).margin_start(10).margin_top(10).margin_bottom(10).build();
+        
+        grid.attach(&Label::builder().label("Name:").halign(gtk::Align::Start).build(), 0, 0, 1, 1);
+        let name_entry = Entry::builder().halign(gtk::Align::Fill).valign(gtk::Align::Center).hexpand(true).editable(false).secondary_icon_sensitive(true).secondary_icon_activatable(true).secondary_icon_name("folder-open").secondary_icon_tooltip_text("Reveal in files").build();
+        grid.attach(&name_entry, 1, 0, 1, 1);
+        let path = Rc::new(RefCell::new(std::path::PathBuf::new()));
+        name_entry.connect_icon_press(clone!(@weak path => move |_, _| {
+            let _ = opener::reveal(path.borrow().as_path()).inspect_err(|e|log::warn!("{}", e));
+        }));
+
+        grid.attach(&Label::builder().label("Map:").halign(gtk::Align::Start).build(), 0, 1, 1, 1);
+        let map_entry = Entry::builder().halign(gtk::Align::Fill).valign(gtk::Align::Center).hexpand(true).editable(false).build();
+        grid.attach(&map_entry, 1, 1, 1, 1);
+
+        grid.attach(&Label::builder().label("Username:").halign(gtk::Align::Start).build(), 0, 2, 1, 1);
+        let nick_entry = Entry::builder().halign(gtk::Align::Fill).valign(gtk::Align::Center).hexpand(true).editable(false).build();
+        grid.attach(&nick_entry, 1, 2, 1, 1);
+
+        grid.attach(&Label::builder().label("Duration:").halign(gtk::Align::Start).build(), 0, 3, 1, 1);
+        let dur_entry = Entry::builder().halign(gtk::Align::Fill).valign(gtk::Align::Center).hexpand(true).editable(false).build();
+        grid.attach(&dur_entry, 1, 3, 1, 1);
+        
+        grid.attach(&Label::builder().label("Server:").halign(gtk::Align::Start).build(), 0, 4, 1, 1);
+        let server_entry = Entry::builder().halign(gtk::Align::Fill).valign(gtk::Align::Center).hexpand(true).editable(false).build();
+        grid.attach(&server_entry, 1, 4, 1, 1);
+
+        grid.attach(&Label::builder().label("Notes:").halign(gtk::Align::Start).build(), 0, 5, 1, 1);
+        let notes_area = TextView::builder().margin_end(10).margin_start(10).margin_top(10).margin_bottom(10).build();
+        grid.attach(&Frame::builder().child(&notes_area).vexpand(true).valign(gtk::Align::Fill).build(), 0, 6, 2, 1);
+        
+        let scroller = ScrolledWindow::builder().child(&grid).hexpand(true).vexpand(true).build();
+        (scroller, Rc::new(std::boxed::Box::new(clone!(@strong path => move |demo_o|{
+            if let Some(demo) = demo_o{
+                name_entry.buffer().set_text(&demo.filename);
+                name_entry.set_icon_activatable(gtk::EntryIconPosition::Secondary, true);
+                path.replace(demo.path.clone());
+                notes_area.buffer().set_text(demo.notes.unwrap_or_default().as_str());
+                if let Some(header) = &demo.header {
+                    map_entry.buffer().set_text(&header.map);
+                    nick_entry.buffer().set_text(&header.nick);
+                    dur_entry.buffer().set_text(format!("{} ({} ticks | {:.3} tps)", crate::util::sec_to_timestamp(header.duration), header.ticks, header.ticks as f32/header.duration).as_str());
+                    server_entry.buffer().set_text(&header.server);
+                }else{
+                    map_entry.buffer().set_text("");
+                    nick_entry.buffer().set_text("");
+                    dur_entry.buffer().set_text("");
+                    server_entry.buffer().set_text("");
+                }
+            }else{
+                name_entry.buffer().set_text("");
+                map_entry.buffer().set_text("");
+                nick_entry.buffer().set_text("");
+                dur_entry.buffer().set_text("");
+                server_entry.buffer().set_text("");
+                name_entry.set_icon_activatable(gtk::EntryIconPosition::Secondary, false);
+                notes_area.buffer().set_text("");
+            }
+        }))))
     }
 
     fn build_demo_list() -> (ScrolledWindow, SingleSelection){

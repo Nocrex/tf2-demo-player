@@ -9,7 +9,11 @@ This is an in-development application for managing and playing back TF2 demos, t
     + Skip to timestamp/bookmark
 + Add descriptions/notes to demos
 
-These features are currently the primary focus of the tool and I will probably add more in the future.
+These features could also be implemented in the future, but aren't a main focus right now:
+
++ View Scoreboard of demos
++ Export Demos to Video/Image Sequence (set in/out points on timeline)
+    + Optionally combine image sequence to video with ffmpeg
 
 ## Usage
 To be able to use the playback functions of the app TF2 needs to be configured to enable client rcon.
