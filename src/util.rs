@@ -1,9 +1,9 @@
-pub fn ticks_to_sec(ticks: u32) -> f32 {
-    return ticks as f32 / 66.666;
+pub fn ticks_to_sec(ticks: u32, tickrate: f32) -> f32 {
+    return ticks as f32 / tickrate;
 }
 
-pub fn sec_to_ticks(sec: f32) -> u32 {
-    return (sec * 66.666) as u32;
+pub fn sec_to_ticks(sec: f32, tickrate: f32) -> u32 {
+    return (sec * tickrate) as u32;
 }
 
 pub fn sec_to_timestamp(sec: f32) -> String {
