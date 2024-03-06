@@ -3,9 +3,9 @@ use std::rc::Rc;
 
 use gtk::gio::{ApplicationFlags, ListStore, Menu, SimpleAction};
 use gtk::glib::clone;
-use gtk::{glib, prelude::*, Adjustment, AlertDialog, Application, ApplicationWindow, Box, Button, FileDialog, Grid, HeaderBar, Label, MenuButton, Paned, PopoverMenu, Scale};
+use gtk::{glib, prelude::*, Adjustment, AlertDialog, Application, ApplicationWindow, Box, Button, FileDialog, Grid, HeaderBar, Label, MenuButton, Paned, PopoverMenu, Scale, SelectionModel, SingleSelection, SortListModel};
 
-use crate::demo_manager::DemoManager;
+use crate::demo_manager::{Demo, DemoManager};
 use crate::rcon_manager::RconManager;
 use crate::settings::Settings;
 use crate::util::{sec_to_timestamp, ticks_to_sec};
@@ -59,7 +59,8 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
 
     let update_demos = Rc::new(clone!(@weak selection, @weak demos => move || {
         let sel_model = selection.model().unwrap();
-        let demo_model = sel_model.downcast_ref::<ListStore>().unwrap();
+        let sort_model = sel_model.downcast_ref::<SortListModel>().unwrap().model().unwrap();
+        let demo_model = sort_model.downcast_ref::<ListStore>().unwrap();
         demo_model.remove_all();
 
         for demo in demos.borrow().get_demos() {
@@ -69,6 +70,11 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
 
     update_demos();
 
+
+    fn get_selected_demo<'a>(selection: &SingleSelection, demos: &'a DemoManager) -> &'a Demo{
+        let dem_name = selection.selected_item().unwrap().downcast_ref::<DemoObject>().unwrap().name();
+        demos.get_demos().iter().find(|d|d.filename == dem_name).unwrap()
+    }
 
 
     let grid = Grid::builder().column_homogeneous(false).margin_end(5).height_request(250).build();
@@ -82,7 +88,7 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
     grid.attach(&timestamp_label, 1, 0, 1, 1);
 
     playhead.connect_value_changed(clone!(@weak timestamp_label, @weak demos, @weak selection => move |ph|{
-        let tps = demos.borrow().get_demos().get(selection.selected() as usize).unwrap().header.as_ref().map_or(66.667, |h|h.ticks as f32/h.duration);
+        let tps = get_selected_demo(&selection, &demos.borrow()).header.as_ref().map_or(66.667, |h|h.ticks as f32/h.duration);
         let secs = ticks_to_sec(ph.value() as u32, tps);
         timestamp_label.set_label(format!("{}\ntick {}", sec_to_timestamp(secs).as_str(), ph.value() as u32).as_str());
     }));
@@ -104,7 +110,7 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
         glib::spawn_future_local(clone!(@weak demos, @weak selection, @weak rcon, @weak b => async move {
             b.set_sensitive(false);
             let b_demos = demos.borrow();
-            let selected = b_demos.get_demos().get(selection.selected() as usize).unwrap();
+            let selected = get_selected_demo(&selection, &b_demos);
             let _ = rcon.borrow_mut().play_demo(selected).await;
             b.set_sensitive(true);
         }));
@@ -119,7 +125,7 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
 
             {
                 let mut demos = demos.borrow_mut();
-                let demo = demos.get_demos().get(selection.selected() as usize).unwrap().clone();
+                let demo = get_selected_demo(&selection, &demos).clone();
                 let ad = AlertDialog::builder().buttons(vec!["Delete", "Cancel"]).default_button(1).cancel_button(1).message(format!("Deleting {}", demo.filename).as_str()).message("Are you sure?").modal(true).build();
                 match ad.choose_future(Some(&window)).await {
                     Ok(choice) => match choice {0 => {}, _ => return},
@@ -161,11 +167,11 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
         }
         button_box.set_sensitive(true);
         playhead.set_sensitive(true);
-        let demo = demos.get_demos().get(s.selected() as usize).unwrap();
+        let demo = get_selected_demo(s, &demos);
         update_detail_view(Some(demo.to_owned()));
         playhead.set_value(0.0);
         playhead.clear_marks();
-        playhead.set_range(0.0, demo.header.as_ref().unwrap().ticks as f64);
+        playhead.set_range(0.0, demo.header.as_ref().map_or(0, |h|h.ticks) as f64);
         for event in &demo.events {
             playhead.add_mark(event.tick as f64, gtk::PositionType::Bottom, None);
         }

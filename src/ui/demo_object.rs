@@ -19,14 +19,14 @@ impl DemoObject {
         if let Some(header) = &demo.header{
             b = b.property("map", header.map.to_owned())
                 .property("username", header.nick.to_owned())
-                .property("duration", humantime::format_duration(Duration::from_secs(header.duration as u64)).to_string());
+                .property("duration", header.duration);
         }
 
         if let Some(meta) = &demo.metadata {
-            b = b.property("created", meta.created().map_or("".to_owned(), |t|
-                chrono::Local.timestamp_millis_opt(t.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as i64).unwrap().format("%Y-%m-%d %H:%M:%S").to_string()
+            b = b.property("created", meta.created().map_or(0, |t|
+                t.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as i64
                 ))
-                .property("size", format!("{:.2}B", size_format::SizeFormatterBinary::new(meta.len())));
+                .property("size", meta.len());
         }
 
         b.build()
@@ -52,13 +52,13 @@ mod imp {
         #[property(get, set)]
         username: RefCell<String>,
         #[property(get, set)]
-        duration: RefCell<String>,
+        duration: Cell<f32>,
         #[property(get, set)]
         bookmarks: Cell<u32>,
         #[property(get, set)]
-        size: RefCell<String>,
+        size: Cell<u64>,
         #[property(get, set)]
-        created: RefCell<String>,
+        created: Cell<i64>,
     }
 
 

@@ -47,7 +47,7 @@ impl Demo {
         let f = fs::read(&self.path).await.unwrap();
 
         let demo = tf_demo_parser::Demo::new(&f);
-        self.header = Some(Header::read(&mut demo.get_stream()).unwrap());
+        self.header = Header::read(&mut demo.get_stream()).map_or(None, |r|Some(r));
 
         let mut bookmark_file = self.path.clone();
         bookmark_file.set_extension("json");
