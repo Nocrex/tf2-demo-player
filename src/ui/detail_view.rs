@@ -4,20 +4,20 @@ use std::rc::Rc;
 use gtk::gio::ListModel;
 use gtk::glib::Object;
 use gtk::{glib, glib::clone};
-use gtk::{prelude::*, CenterBox, Entry, Frame, Grid, Label, ListItem, ListView, MultiSelection, Notebook, ScrolledWindow, SignalListItemFactory, TextView, Widget};
+use gtk::{prelude::*, Box, CenterBox, Entry, Frame, Grid, Label, ListItem, ListView, MultiSelection, ScrolledWindow, SignalListItemFactory, TextView, Widget};
 
 use crate::demo_manager::Demo;
 
 use super::event_object::EventObject;
 
-pub fn build_detail_view<F: Fn(u32) + 'static>(event_activated: F) -> (Notebook, Rc<dyn Fn(Option<Demo>)>) {
-    let detail_view = Notebook::builder().show_border(true).build();
+pub fn build_detail_view<F: Fn(u32) + 'static>(event_activated: F) -> (Box, Rc<dyn Fn(Option<Demo>)>) {
+    let detail_view = Box::builder().orientation(gtk::Orientation::Horizontal).spacing(5).build();
 
     let (detail_tab, update_detail_tab) = build_detail_tab();
-    detail_view.append_page(&detail_tab, Some(&Label::new(Some(&"Details"))));
+    detail_view.append(&detail_tab);
 
     let (event_tab, update_event_tab) = build_event_tab(event_activated);
-    detail_view.append_page(&event_tab, Some(&Label::new(Some(&"Events"))));
+    detail_view.append(&event_tab);
 
     (detail_view, Rc::new(move |demo|{
         update_detail_tab(demo.as_ref());
@@ -115,7 +115,7 @@ fn build_event_tab<F: Fn(u32) + 'static>(activation_callback: F) -> (ScrolledWin
     let sel = MultiSelection::new(None::<ListModel>);
     sel.set_model(Some(&model));
     
-    let list = ListView::builder().model(&sel).factory(&factory).build();
+    let list = ListView::builder().model(&sel).factory(&factory).show_separators(true).build();
 
     list.connect_activate(clone!(@weak model => move |_,i|{
         let evob = model.item(i).unwrap().downcast::<EventObject>().unwrap();

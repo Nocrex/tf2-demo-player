@@ -1,9 +1,11 @@
 use std::cell::RefCell;
+use std::collections::HashSet;
+use std::hash::RandomState;
 use std::rc::Rc;
 
 use gtk::gio::{ApplicationFlags, ListStore, Menu, SimpleAction};
 use gtk::glib::clone;
-use gtk::{glib, prelude::*, Adjustment, AlertDialog, Application, ApplicationWindow, Box, Button, FileDialog, Grid, HeaderBar, Label, MenuButton, Paned, PopoverMenu, Scale, SelectionModel, SingleSelection, SortListModel};
+use gtk::{glib, prelude::*, Adjustment, AlertDialog, Application, ApplicationWindow, Box, Button, CenterBox, FileDialog, Grid, HeaderBar, Label, MenuButton, MultiSelection, Paned, PopoverMenu, Scale, SortListModel};
 
 use crate::demo_manager::{Demo, DemoManager};
 use crate::rcon_manager::RconManager;
@@ -58,26 +60,30 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
     let (demo_scroll, selection) = build_demo_list();
 
     let update_demos = Rc::new(clone!(@weak selection, @weak demos => move || {
+        let demos = demos.borrow();
         let sel_model = selection.model().unwrap();
         let sort_model = sel_model.downcast_ref::<SortListModel>().unwrap().model().unwrap();
         let demo_model = sort_model.downcast_ref::<ListStore>().unwrap();
-        demo_model.remove_all();
 
-        for demo in demos.borrow().get_demos() {
-            demo_model.append(&DemoObject::new(demo));
+        let model_set: HashSet<String, RandomState> = HashSet::from_iter(demo_model.into_iter().map(|d|d.unwrap().downcast::<DemoObject>().unwrap().name()));
+        let data_set: HashSet<String, RandomState> = HashSet::from_iter(demos.get_demos().into_iter().map(|t|t.0.to_owned()));
+        
+        demo_model.retain(|d|{
+            let d = d.downcast_ref::<DemoObject>().unwrap().name();
+            data_set.contains(&d)
+        });
+
+        let added = data_set.difference(&model_set);
+        for dn in added {
+            demo_model.append(&DemoObject::new(demos.get_demo(&dn).unwrap()));
         }
     }));
 
     update_demos();
 
-
-    fn get_selected_demo<'a>(selection: &SingleSelection, demos: &'a DemoManager) -> &'a Demo{
-        let dem_name = selection.selected_item().unwrap().downcast_ref::<DemoObject>().unwrap().name();
-        demos.get_demos().iter().find(|d|d.filename == dem_name).unwrap()
-    }
-
-
-    let grid = Grid::builder().column_homogeneous(false).margin_end(5).height_request(250).build();
+    let bottom_box = Box::builder().orientation(gtk::Orientation::Vertical).vexpand(true).hexpand(true).build();
+    let grid = Grid::builder().column_homogeneous(false).margin_end(5).margin_start(5).margin_bottom(5).build();
+    bottom_box.append(&grid);
 
     let playhead = Scale::builder().orientation(gtk::Orientation::Horizontal).hexpand(true).build();
     playhead.set_range(0.0, 100.0);
@@ -88,7 +94,7 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
     grid.attach(&timestamp_label, 1, 0, 1, 1);
 
     playhead.connect_value_changed(clone!(@weak timestamp_label, @weak demos, @weak selection => move |ph|{
-        let tps = get_selected_demo(&selection, &demos.borrow()).header.as_ref().map_or(66.667, |h|h.ticks as f32/h.duration);
+        let tps = get_selected_demo(&selection, &demos.borrow()).unwrap().header.as_ref().map_or(66.667, |h|h.ticks as f32/h.duration);
         let secs = ticks_to_sec(ph.value() as u32, tps);
         timestamp_label.set_label(format!("{}\ntick {}", sec_to_timestamp(secs).as_str(), ph.value() as u32).as_str());
     }));
@@ -98,49 +104,27 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
     let (detail_view, update_detail_view) = build_detail_view(clone!(@weak playhead => move |t|{
         playhead.set_value(t as f64);
     }));
-    grid.attach(&detail_view, 0, 1, 1, 1);
+    bottom_box.append(&detail_view);
 
 
 
-    let button_box = Box::builder().orientation(gtk::Orientation::Vertical).spacing(5).width_request(100).margin_start(5).build();
-    grid.attach(&button_box, 1, 1, 1, 1);
+    let left_button_box = Box::builder().orientation(gtk::Orientation::Horizontal).spacing(5).build();
+    grid.attach(&CenterBox::builder().start_widget(&left_button_box).build(), 0, 1, 2, 1);
 
-    let play_button = Button::builder().label("Play").build();
+    let play_button = Button::builder().icon_name("media-playback-start-symbolic").tooltip_text("Play demo in TF2").build();
     play_button.connect_clicked(clone!(@weak demos, @weak selection, @weak rcon => move |b| {
         glib::spawn_future_local(clone!(@weak demos, @weak selection, @weak rcon, @weak b => async move {
             b.set_sensitive(false);
             let b_demos = demos.borrow();
-            let selected = get_selected_demo(&selection, &b_demos);
+            let selected = get_selected_demo(&selection, &b_demos).unwrap();
             let _ = rcon.borrow_mut().play_demo(selected).await;
             b.set_sensitive(true);
         }));
     }));
-    button_box.append(&play_button);
+    left_button_box.append(&play_button);
 
-    let delete_button = Button::builder().label("Delete").build();
-    button_box.append(&delete_button);
-
-    delete_button.connect_clicked(clone!(@weak demos, @weak selection, @strong update_demos, @weak window => move|_|{
-        glib::spawn_future_local(clone!(@weak demos, @weak selection, @weak update_demos, @weak window => async move {
-
-            {
-                let mut demos = demos.borrow_mut();
-                let demo = get_selected_demo(&selection, &demos).clone();
-                let ad = AlertDialog::builder().buttons(vec!["Delete", "Cancel"]).default_button(1).cancel_button(1).message(format!("Deleting {}", demo.filename).as_str()).message("Are you sure?").modal(true).build();
-                match ad.choose_future(Some(&window)).await {
-                    Ok(choice) => match choice {0 => {}, _ => return},
-                    Err(e) => log::warn!("Dialog error? {}", e)
-                };
-
-                demos.delete_demo(&demo).await;
-                
-            }
-            update_demos();
-        }));
-    }));
-
-    let seek_button = Button::builder().label("Seek").build();
-    button_box.append(&seek_button);
+    let seek_button = Button::builder().icon_name("find-location-symbolic").tooltip_text("Skip to tick").build();
+    left_button_box.append(&seek_button);
 
     seek_button.connect_clicked(clone!(@weak rcon, @weak playhead => move |b|{
         glib::spawn_future_local(clone!(@weak rcon, @weak playhead, @weak b => async move {
@@ -149,25 +133,42 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
             b.set_sensitive(true);
         }));
     }));
+    
+
+
+    let skip_backward_button = Button::builder().icon_name("media-seek-backward-symbolic").tooltip_text("-30s").build();
+
+    skip_backward_button.connect_clicked(clone!(@weak playhead, @weak selection, @weak demos => move |_|{
+        playhead.set_value(playhead.value() - 30.0*66.667);
+    }));
+    left_button_box.append(&skip_backward_button);
+
+    let skip_forward_button = Button::builder().icon_name("media-seek-forward-symbolic").tooltip_text("+30s").build();
+
+    skip_forward_button.connect_clicked(clone!(@weak playhead, @weak selection, @weak demos => move |_|{
+        playhead.set_value(playhead.value() + 30.0*66.667);
+    }));
+    left_button_box.append(&skip_forward_button);
 
 
 
 
     selection.connect_selection_changed(clone!(@strong update_detail_view, @weak demos, @weak playhead => move|s,_,_|{
         let demos = demos.borrow();
-        if demos.get_demos().is_empty(){
+        let demo = get_selected_demo(s, &demos);
+        if demo.is_none(){
             playhead.set_value(0.0);
             playhead.set_range(0.0, 1.0);
             playhead.clear_marks();
             playhead.set_sensitive(false);
             update_detail_view(None);
 
-            button_box.set_sensitive(false);
+            left_button_box.set_sensitive(false);
             return;
         }
-        button_box.set_sensitive(true);
+        let demo = demo.unwrap();
+        left_button_box.set_sensitive(true);
         playhead.set_sensitive(true);
-        let demo = get_selected_demo(s, &demos);
         update_detail_view(Some(demo.to_owned()));
         playhead.set_value(0.0);
         playhead.clear_marks();
@@ -185,7 +186,7 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
     let titlebar = HeaderBar::new();
     titlebar.set_title_widget(Some(&Label::builder().label("Demo Player").build()));
     
-    let folderbutton = Button::builder().icon_name("folder-open").tooltip_text("Select demo folder").width_request(20).height_request(20).build();
+    let folderbutton = Button::builder().icon_name("folder-symbolic").tooltip_text("Select demo folder").width_request(20).height_request(20).build();
     titlebar.pack_start(&folderbutton);
     
     folderbutton.connect_clicked(clone!(@weak update_demos, @weak demos, @weak window, @weak settings, @weak selection => move|_|{
@@ -231,16 +232,64 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
     });
 
     let menu = PopoverMenu::from_model(Some(&menu_model));
-    let menubutton = MenuButton::builder().icon_name("application-menu").popover(&menu).build();
+    let menubutton = MenuButton::builder().icon_name("open-menu-symbolic").popover(&menu).build();
     
     titlebar.pack_end(&menubutton);
 
 
+    let delete_button = Button::builder().icon_name("edit-delete-symbolic").tooltip_text("Delete selected demo").build();
+
+    delete_button.connect_clicked(clone!(@weak demos, @weak selection, @strong update_demos, @weak window => move|_|{
+        glib::spawn_future_local(clone!(@weak demos, @weak selection, @weak update_demos, @weak window => async move {
+
+            {
+                let mut demos = demos.borrow_mut();
+                let sel_demos = get_all_selected_demos(&selection);
+                let ad = AlertDialog::builder().buttons(vec!["Delete", "Cancel"]).default_button(1).cancel_button(1).detail("Deleting selected demos!").message("Are you sure?").modal(true).build();
+                match ad.choose_future(Some(&window)).await {
+                    Ok(choice) => match choice {0 => {}, _ => return},
+                    Err(e) => {log::warn!("Dialog error? {}", e); return;}
+                };
+
+                for d in sel_demos {
+                    demos.delete_demo(&d).await;
+                }
+                
+            }
+            update_demos();
+        }));
+    }));
+
+    titlebar.pack_end(&delete_button);
+
 
     
-    let pane = Paned::builder().orientation(gtk::Orientation::Vertical).start_child(&demo_scroll).end_child(&grid).build();
+    let pane = Paned::builder().orientation(gtk::Orientation::Vertical).start_child(&demo_scroll).end_child(&bottom_box).build();
     
     window.set_child(Some(&pane));
     window.set_titlebar(Some(&titlebar));
     window.present();
+}
+
+fn get_selected_demo<'a>(selection: &MultiSelection, demos: &'a DemoManager) -> Option<&'a Demo>{
+    let selected = selection.selection();
+    if selected.is_empty() {
+        return None;
+    }
+    let model = selection.model().unwrap();
+    let dem_name = model.item(selected.nth(0)).and_downcast_ref::<DemoObject>().unwrap().name();
+    Some(demos.get_demo(&dem_name).unwrap())
+}
+
+fn get_all_selected_demos(selection: &MultiSelection) -> Vec<String> {
+    let selected = selection.selection();
+    if selected.is_empty() {
+        return vec![];
+    }
+
+    let model = selection.model().unwrap();
+    
+    (0..selected.size() as u32).map(|i|{
+        model.item(selected.nth(i)).and_downcast_ref::<DemoObject>().unwrap().name()
+    }).collect()
 }

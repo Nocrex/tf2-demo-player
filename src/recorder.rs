@@ -3,6 +3,7 @@
 pub enum Codec {
     WebM,
     H264,
+    TGA_WAV,
     TGA,
     WAV,
 }
@@ -12,7 +13,8 @@ impl Codec {
         match self {
             Codec::WebM => "webm".to_owned(),
             Codec::H264 => "h264".to_owned(),
-            Codec::TGA => "raw".to_owned(),
+            Codec::TGA_WAV => "raw".to_owned(),
+            Codec::TGA => "tga".to_owned(),
             Codec::WAV => "wav".to_owned(),
         }
     }
