@@ -12,6 +12,7 @@ pub enum Command<'a> {
     PausePlayback(),
     ResumePlayback(),
     TogglePlayback(),
+    StopPlayback(),
     SetPlaybackSpeed(f32),
     /* StartRecording(&'a str, Codec), */
 }
@@ -28,6 +29,7 @@ impl Command<'_> {
             Command::ResumePlayback() => "demo_resume".to_owned(),
             Command::SetPlaybackSpeed(s) => format!("demo_timescale {:.2}", s),
             Command::TogglePlayback() => "demo_togglepause".to_owned(),
+            Command::StopPlayback() => "stopdemo".to_owned(),
             /* Command::StartRecording(name, codec) => format!("startmovie \"{}\" {}", name, codec.params()), */
         }
     }
@@ -95,4 +97,9 @@ impl RconManager {
     pub async fn skip_to_tick(&mut self, tick: u32, pause: bool) -> Result<String, Error> {
         self.send_command(Command::SkipToTick(tick, pause)).await
     }
+
+    pub async fn stop_playback(&mut self) -> Result<String, Error> {
+        self.send_command(Command::StopPlayback()).await
+    }
+
 }

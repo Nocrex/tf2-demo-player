@@ -29,6 +29,7 @@ pub struct Demo {
 }
 
 impl Demo {
+    pub const TICKRATE: f32 = 66.667;
     pub fn new(path: &Path) -> Self {
         Demo{
             path: path.into(),
@@ -78,6 +79,10 @@ impl Demo {
 
         let _ = fs::write(&bookmark_file, json).await
             .inspect_err(|e|log::warn!("Couldn't save bookmark file {}, {}", bookmark_file.display(), e));
+    }
+
+    pub fn tps(&self) -> Option<f32> {
+        Some(self.header.as_ref()?.ticks as f32/self.header.as_ref()?.duration)
     }
 }
 

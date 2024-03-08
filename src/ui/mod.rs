@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use gtk::gio::{ApplicationFlags, ListStore, Menu, SimpleAction};
 use gtk::glib::clone;
-use gtk::{glib, prelude::*, Adjustment, AlertDialog, Application, ApplicationWindow, Box, Button, CenterBox, FileDialog, Grid, HeaderBar, Label, MenuButton, MultiSelection, Paned, PopoverMenu, Scale, SortListModel};
+use gtk::{glib, prelude::*, Adjustment, AlertDialog, Application, ApplicationWindow, Box, Button, CenterBox, FileDialog, Grid, HeaderBar, Label, MenuButton, MultiSelection, Paned, PopoverMenu, Scale, Separator, SortListModel};
 
 use crate::demo_manager::{Demo, DemoManager};
 use crate::rcon_manager::RconManager;
@@ -94,7 +94,7 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
     grid.attach(&timestamp_label, 1, 0, 1, 1);
 
     playhead.connect_value_changed(clone!(@weak timestamp_label, @weak demos, @weak selection => move |ph|{
-        let tps = get_selected_demo(&selection, &demos.borrow()).unwrap().header.as_ref().map_or(66.667, |h|h.ticks as f32/h.duration);
+        let tps = get_selected_demo(&selection, &demos.borrow()).unwrap().tps().unwrap_or(Demo::TICKRATE);
         let secs = ticks_to_sec(ph.value() as u32, tps);
         timestamp_label.set_label(format!("{}\ntick {}", sec_to_timestamp(secs).as_str(), ph.value() as u32).as_str());
     }));
@@ -111,7 +111,7 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
     let left_button_box = Box::builder().orientation(gtk::Orientation::Horizontal).spacing(5).build();
     grid.attach(&CenterBox::builder().start_widget(&left_button_box).build(), 0, 1, 2, 1);
 
-    let play_button = Button::builder().icon_name("media-playback-start-symbolic").tooltip_text("Play demo in TF2").build();
+    let play_button = Button::builder().icon_name("media-playback-start-symbolic").tooltip_text("Play demo").build();
     play_button.connect_clicked(clone!(@weak demos, @weak selection, @weak rcon => move |b| {
         glib::spawn_future_local(clone!(@weak demos, @weak selection, @weak rcon, @weak b => async move {
             b.set_sensitive(false);
@@ -129,28 +129,39 @@ fn build_ui(rcon: Rc<RefCell<RconManager>>, demos: Rc<RefCell<DemoManager>>, set
     seek_button.connect_clicked(clone!(@weak rcon, @weak playhead => move |b|{
         glib::spawn_future_local(clone!(@weak rcon, @weak playhead, @weak b => async move {
             b.set_sensitive(false);
-            let _ = rcon.borrow_mut().skip_to_tick(playhead.value() as u32, true).await;
+            let _ = rcon.borrow_mut().skip_to_tick(playhead.value() as u32, false).await;
             b.set_sensitive(true);
         }));
     }));
     
 
+    let stop_playback_button = Button::builder().icon_name("media-playback-stop-symbolic").tooltip_text("Stop Playback").build();
+    stop_playback_button.connect_clicked(clone!(@weak rcon => move |b|{
+        glib::spawn_future_local(clone!(@weak rcon, @weak b => async move {
+            b.set_sensitive(false);
+            let _ = rcon.borrow_mut().stop_playback().await;
+            b.set_sensitive(true);
+        }));
+    }));
+    left_button_box.append(&stop_playback_button);
+
+    left_button_box.append(&Separator::builder().orientation(gtk::Orientation::Vertical).build());
 
     let skip_backward_button = Button::builder().icon_name("media-seek-backward-symbolic").tooltip_text("-30s").build();
 
     skip_backward_button.connect_clicked(clone!(@weak playhead, @weak selection, @weak demos => move |_|{
-        playhead.set_value(playhead.value() - 30.0*66.667);
+        let tps = get_selected_demo(&selection, &demos.borrow()).unwrap().tps().unwrap_or(Demo::TICKRATE);
+        playhead.set_value(playhead.value() - 30.0*tps as f64);
     }));
     left_button_box.append(&skip_backward_button);
 
     let skip_forward_button = Button::builder().icon_name("media-seek-forward-symbolic").tooltip_text("+30s").build();
 
     skip_forward_button.connect_clicked(clone!(@weak playhead, @weak selection, @weak demos => move |_|{
-        playhead.set_value(playhead.value() + 30.0*66.667);
+        let tps = get_selected_demo(&selection, &demos.borrow()).unwrap().tps().unwrap_or(Demo::TICKRATE);
+        playhead.set_value(playhead.value() + 30.0*tps as f64);
     }));
     left_button_box.append(&skip_forward_button);
-
-
 
 
     selection.connect_selection_changed(clone!(@strong update_detail_view, @weak demos, @weak playhead => move|s,_,_|{
