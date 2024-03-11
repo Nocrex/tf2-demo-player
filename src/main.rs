@@ -12,9 +12,13 @@ mod util;
 mod ui;
 use ui::UI;
 
+use gtk::gio;
+
 #[tokio::main]
 async fn main() {
     env_logger::init();
+    gio::resources_register_include!("ui.gresource")
+        .expect("Failed to register resources.");
     let settings = Settings::load();
 
     let rcon_manager = RconManager::new(settings.rcon_pw.clone());

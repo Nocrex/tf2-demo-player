@@ -86,7 +86,7 @@ impl Demo {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct DemoManager {
     demos: HashMap<String, Demo>,
 }
