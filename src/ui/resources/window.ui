@@ -153,12 +153,31 @@ tick 0</property>
                         </child>
                       </object>
                     </child>
+                    <child type="end">
+                      <object class="GtkBox" id="detail_edit">
+                        <property name="orientation">horizontal</property>
+                        <property name="spacing">5</property>
+                        <property name="sensitive">false</property>
+                        <child>
+                          <object class="GtkButton" id="detail_edit_cancel">
+                            <property name="icon-name">edit-clear-all-symbolic</property>
+                            <property name="tooltip-text">Cancel changes</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="detail_edit_save">
+                            <property name="icon-name">document-save-symbolic</property>
+                            <property name="tooltip-text">Save changes</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>
             </child>
             <child>
-              <object class="GtkBox">
+              <object class="GtkBox" id="detail_box">
                 <property name="orientation">horizontal</property>
                 <property name="spacing">5</property>
                 <child>

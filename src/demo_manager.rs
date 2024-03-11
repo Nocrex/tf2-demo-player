@@ -68,14 +68,28 @@ impl Demo {
     }
 
     pub async fn save_json(&self) {
+        let mut bookmark_file = self.path.clone();
+        bookmark_file.set_extension("json");
+
+        let mut notes = self.notes.clone();
+        if let Some(s) = &self.notes {
+            if s.is_empty() {
+                notes = None;
+            }
+        }
+        if notes.is_none() && self.events.is_empty() {
+            let _ = fs::remove_file(&bookmark_file).await
+            .inspect_err(|e|log::info!("Couldn't delete bookmark file {}, {}", bookmark_file.display(), e));
+            return;
+        }
+
         let container = EventContainer{
             events: self.events.clone(),
-            notes: self.notes.clone(),
+            notes: notes,
         };
         let json = serde_json::to_string_pretty(&container).unwrap();
 
-        let mut bookmark_file = self.path.clone();
-        bookmark_file.set_extension("json");
+        
 
         let _ = fs::write(&bookmark_file, json).await
             .inspect_err(|e|log::warn!("Couldn't save bookmark file {}, {}", bookmark_file.display(), e));
@@ -113,6 +127,10 @@ impl DemoManager {
 
     pub fn get_demos(&self) -> &HashMap<String, Demo> {
         &self.demos
+    }
+
+    pub fn get_demos_mut(&mut self) -> &mut HashMap<String, Demo> {
+        &mut self.demos
     }
 
     pub async fn delete_demo(&mut self, name: &str){
