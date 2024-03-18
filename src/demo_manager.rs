@@ -4,6 +4,7 @@ use bitbuffer::BitRead;
 use glob::glob;
 use serde::{Serialize, Deserialize};
 use tokio::fs;
+use trash;
 
 #[derive(Serialize, Deserialize)]
 struct EventContainer {
@@ -135,17 +136,21 @@ impl DemoManager {
 
     pub async fn delete_demo(&mut self, name: &str){
         let demo = self.demos.get(name).unwrap().to_owned();
-        if let Err(e) = fs::remove_file(demo.path.as_path()).await{
-            log::info!("Couldn't delete {}, {}", demo.path.display(), e);
-        }
 
         let mut bookmark_path = demo.path.clone();
         bookmark_path.set_extension("json");
 
-        if let Err(e) = fs::remove_file(bookmark_path.as_path()).await{
-            log::info!("Couldn't delete {}, {}", bookmark_path.display(), e);
-        }
+        let _ = tokio::task::spawn_blocking(move ||{
+            if let Err(e) = trash::delete(demo.path.as_path()){
+                log::info!("Couldn't delete {}, {}", demo.path.display(), e);
+            }
 
+            if let Err(e) = trash::delete(bookmark_path.as_path()){
+                log::info!("Couldn't delete {}, {}", bookmark_path.display(), e);
+            }
+
+        }).await;
+        
         self.demos.remove(&demo.filename);
     }
 }

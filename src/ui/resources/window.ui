@@ -177,15 +177,14 @@ tick 0</property>
               </object>
             </child>
             <child>
-              <object class="GtkBox" id="detail_box">
+              <object class="GtkPaned" id="detail_box">
+                <property name="position">500</property>
                 <property name="orientation">horizontal</property>
-                <property name="spacing">5</property>
-                <child>
+                <child type="start">
                   <object class="GtkScrolledWindow">
-                    <property name="hexpand">true</property>
-                    <property name="vexpand">true</property>
                     <child>
                       <object class="GtkGrid">
+                        <property name="width-request">400</property>
                         <property name="column-homogeneous">false</property>
                         <property name="row-homogeneous">false</property>
                         <property name="row-spacing">10</property>
@@ -360,14 +359,10 @@ tick 0</property>
                     </child>
                   </object>
                 </child>
-                <child>
+                <child type="end">
                   <object class="GtkScrolledWindow">
-                    <property name="hexpand">true</property>
-                    <property name="vexpand">true</property>
                     <child>
                       <object class="GtkListView" id="event_list">
-                        <property name="hexpand">true</property>
-                        <property name="vexpand">true</property>
                         <property name="show-separators">true</property>
                       </object>
                     </child>
