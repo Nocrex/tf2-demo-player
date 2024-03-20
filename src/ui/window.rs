@@ -156,15 +156,27 @@ impl Window {
 
         let clean_unfinished_action = SimpleAction::new("clean-unfinished", None);
         self.application().unwrap().add_action(&clean_unfinished_action);
-        clean_unfinished_action.connect_activate(|_,_|{
-            todo!();
-        });
+        clean_unfinished_action.connect_activate(clone!(@weak self as wnd => move|_,_|{
+            glib::spawn_future_local(clone!(@weak wnd => async move {
+                if !wnd.delete_dialog().await {
+                    return;
+                }
+                wnd.demo_manager().borrow_mut().delete_empty_demos().await;
+                wnd.refresh();
+            }));
+        }));
         
         let clean_unmarked_action = SimpleAction::new("clean-unmarked", None);
         self.application().unwrap().add_action(&clean_unmarked_action);
-        clean_unmarked_action.connect_activate(|_,_|{
-            todo!();
-        });
+        clean_unmarked_action.connect_activate(clone!(@weak self as wnd => move|_,_|{
+            glib::spawn_future_local(clone!(@weak wnd => async move {
+                if !wnd.delete_dialog().await {
+                    return;
+                }
+                wnd.demo_manager().borrow_mut().delete_unmarked_demos().await;
+                wnd.refresh();
+            }));
+        }));
     }
 
     pub fn refresh(&self){
@@ -190,6 +202,14 @@ impl Window {
 
     fn event_model(&self) -> gio::ListStore {
         self.imp().event_model.borrow().clone().unwrap()
+    }
+
+    async fn delete_dialog(&self) -> bool {
+        let ad = AlertDialog::builder().buttons(vec!["Delete", "Cancel"]).default_button(1).cancel_button(1).detail("Deleting selected demos!").message("Are you sure?").modal(true).build();
+        match ad.choose_future(Some(self)).await {
+            Ok(choice) => match choice {0 => return true, _ => return false},
+            Err(e) => {log::warn!("Dialog error? {}", e); return false;}
+        };
     }
 
     fn get_selected_demo(&self) -> Option<Demo>{
@@ -286,11 +306,9 @@ impl Window {
                 {
                     let demos = wnd.demo_manager();
                     let sel_demos = wnd.get_all_selected_demos();
-                    let ad = AlertDialog::builder().buttons(vec!["Delete", "Cancel"]).default_button(1).cancel_button(1).detail("Deleting selected demos!").message("Are you sure?").modal(true).build();
-                    match ad.choose_future(Some(&wnd)).await {
-                        Ok(choice) => match choice {0 => {}, _ => return},
-                        Err(e) => {log::warn!("Dialog error? {}", e); return;}
-                    };
+                    if !wnd.delete_dialog().await{
+                        return;
+                    }
     
                     for d in sel_demos {
                         demos.borrow_mut().delete_demo(&d).await;
