@@ -1,5 +1,4 @@
-use tokio::net::TcpStream;
-use rcon::{Connection, Error};
+use rcon::{Connection, Error, AsyncStdStream};
 
 use crate::demo_manager::Demo;
 
@@ -36,7 +35,7 @@ impl Command<'_> {
 }
 
 pub struct RconManager {
-    conn: Option<Connection<TcpStream>>,
+    conn: Option<Connection<AsyncStdStream>>,
     password: String,
 }
 
@@ -52,9 +51,9 @@ impl RconManager {
         self.conn.is_some()
     }
 
-    async fn connect(&mut self) -> Result<(), Error>{
+    pub async fn connect(&mut self) -> Result<(), Error>{
         let mut err: Result<(), Error> = Ok(());
-        match <Connection<TcpStream>>::builder().connect("localhost:27015", &self.password).await {
+        match <Connection<AsyncStdStream>>::builder().connect("localhost:27015", &self.password).await {
             Ok(c) => self.conn = Some(c),
             Err(e) => err = Err(e),
         };

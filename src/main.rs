@@ -13,9 +13,8 @@ mod ui;
 use ui::UI;
 
 use gtk::gio;
-
-#[tokio::main]
-async fn main() {
+use async_std::task;
+fn main() {
     env_logger::init();
     gio::resources_register_include!("ui.gresource")
         .expect("Failed to register resources.");
@@ -24,7 +23,7 @@ async fn main() {
     let rcon_manager = RconManager::new(settings.rcon_pw.clone());
 
     let mut dem_mgr = DemoManager::new();
-    dem_mgr.load_demos(&settings.demo_folder_path).await;
+    task::block_on(dem_mgr.load_demos(&settings.demo_folder_path));
 
     let ui = UI::new(rcon_manager, dem_mgr, settings);
 

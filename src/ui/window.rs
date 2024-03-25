@@ -5,7 +5,7 @@ use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::Object
 
 use crate::{demo_manager::{Demo, DemoManager}, rcon_manager::RconManager, settings::Settings, util::{sec_to_timestamp, ticks_to_sec}};
 
-use super::{demo_object::DemoObject, event_object::EventObject};
+use super::{demo_object::DemoObject, event_object::EventObject, settings_window::SettingsWindow};
 
 use std::time::Duration;
 
@@ -43,6 +43,8 @@ mod imp {
         pub button_open_folder: TemplateChild<Button>,
         #[template_child]
         pub delete_button: TemplateChild<Button>,
+        #[template_child]
+        pub reload_button: TemplateChild<Button>,
 
         #[template_child]
         pub demo_list: TemplateChild<ColumnView>,
@@ -145,15 +147,6 @@ impl Window {
     }
 
     fn register_actions(&self){
-        let reload_action = SimpleAction::new("reload", None);
-        self.application().unwrap().add_action(&reload_action);
-        reload_action.connect_activate(clone!(@weak self as wnd => move |_,_|{
-            glib::spawn_future_local(clone!(@weak wnd => async move {
-                wnd.demo_manager().borrow_mut().load_demos(&wnd.settings().borrow().demo_folder_path).await;
-                wnd.refresh();
-            }));
-        }));
-
         let clean_unfinished_action = SimpleAction::new("clean-unfinished", None);
         self.application().unwrap().add_action(&clean_unfinished_action);
         clean_unfinished_action.connect_activate(clone!(@weak self as wnd => move|_,_|{
@@ -177,6 +170,12 @@ impl Window {
                 wnd.refresh();
             }));
         }));
+
+        let open_settings = SimpleAction::new("open-settings", None);
+        self.application().unwrap().add_action(&open_settings);
+        open_settings.connect_activate(clone!(@weak self as wnd => move |_,_|{
+            SettingsWindow::new(&wnd).show();
+        }));
     }
 
     pub fn refresh(&self){
@@ -184,15 +183,15 @@ impl Window {
         self.selection().emit_by_name::<()>("selection-changed", &[&0u32.to_value(),&0u32.to_value()]);
     }
     
-    fn demo_manager(&self) -> Rc<RefCell<DemoManager>> {
+    pub fn demo_manager(&self) -> Rc<RefCell<DemoManager>> {
         self.imp().demo_manager.borrow().clone().unwrap()
     }
 
-    fn settings(&self) -> Rc<RefCell<Settings>> {
+    pub fn settings(&self) -> Rc<RefCell<Settings>> {
         self.imp().settings.borrow().clone().unwrap()
     }
     
-    fn rcon_manager(&self) -> Rc<RefCell<RconManager>> {
+    pub fn rcon_manager(&self) -> Rc<RefCell<RconManager>> {
         self.imp().rcon_manager.borrow().clone().unwrap()
     }
 
@@ -316,6 +315,15 @@ impl Window {
                     
                 }
                 wnd.update_demos();
+            }));
+        }));
+
+        self.imp().reload_button.connect_clicked(clone!(@weak self as wnd => move |b|{
+            glib::spawn_future_local(clone!(@weak wnd, @weak b => async move {
+                b.set_sensitive(false);
+                wnd.demo_manager().borrow_mut().load_demos(&wnd.settings().borrow().demo_folder_path).await;
+                wnd.refresh();
+                b.set_sensitive(true);
             }));
         }));
     }
@@ -527,7 +535,7 @@ impl Window {
                 chrono::Local.timestamp_millis_opt(v[1].get().unwrap()).unwrap().format("%Y-%m-%d %H:%M:%S").to_string()
             }).bind(&label, "label", Widget::NONE);
         });
-        self.imp().demo_list.append_column(&ColumnViewColumn::builder()
+        let date_column = &ColumnViewColumn::builder()
             .title("Created")
             .resizable(true)
             .factory(&date_factory)
@@ -537,7 +545,9 @@ impl Window {
                     PropertyExpression::new(DemoObject::static_type(), None::<Expression>,"created")
                 ))
             )
-            .build());
+            .build();
+        
+        self.imp().demo_list.append_column(date_column);
 
         let size_factory = SignalListItemFactory::new();
         size_factory.connect_setup(|_, li|{
@@ -578,6 +588,8 @@ impl Window {
                 ))
             )
             .build());
+
+        self.imp().demo_list.sort_by_column(Some(date_column), gtk::SortType::Descending);
 
         self.selection().connect_selection_changed(clone!(@weak self as wnd => move|_,_,_|{
             let demo = wnd.get_selected_demo();

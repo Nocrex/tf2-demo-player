@@ -12,6 +12,8 @@ mod event_object;
 mod window;
 use window::Window;
 
+mod settings_window;
+
 pub struct UI {
     app: Application,
 }
