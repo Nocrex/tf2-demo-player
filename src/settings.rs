@@ -2,10 +2,13 @@ use std::fs;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct Settings {
     pub demo_folder_path: String,
     pub rcon_pw: String,
+
+    #[serde(skip)]
+    pub first_launch: bool,
 }
 
 const SETTINGS_PATH: &str = "settings.json";
@@ -18,8 +21,8 @@ impl Settings {
             },
             Err(e) => {
                 log::warn!("Couldn't load settings file, {}; Creating default", e);
-                let s = Settings::default();
-                s.save();
+                let mut s = Settings::default();
+                s.first_launch = true;
                 s
             },
         }

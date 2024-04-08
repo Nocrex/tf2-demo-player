@@ -3,5 +3,6 @@
   <gresource prefix="/com/github/nocrex/tfdemoplayer/">
     <file compressed="true" preprocess="xml-stripblanks">window.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">settings_window.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">event_dialog.ui</file>
   </gresource>
 </gresources>

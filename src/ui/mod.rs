@@ -14,6 +14,7 @@ mod window;
 use window::Window;
 
 mod settings_window;
+mod event_dialog;
 
 pub struct UI {
     app: Application,
