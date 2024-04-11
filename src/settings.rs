@@ -8,6 +8,7 @@ pub struct Settings {
     pub demo_folder_path: String,
     pub rcon_pw: String,
     pub event_skip_predelay: f32,
+    pub doubleclick_play: bool,
 
     #[serde(skip)]
     pub first_launch: bool,
@@ -19,6 +20,8 @@ impl Default for Settings {
             demo_folder_path: Default::default(),
             rcon_pw: Default::default(),
             event_skip_predelay: 30.0,
+            doubleclick_play: false,
+            
             first_launch: false
         }
     }

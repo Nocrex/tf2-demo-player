@@ -695,6 +695,14 @@ impl Window {
 
         self.imp().demo_list.sort_by_column(Some(date_column), gtk::SortType::Descending);
 
+        self.imp().demo_list.connect_activate(clone!(@weak self as wnd => move |_,_|{
+            glib::spawn_future_local(clone!(@weak wnd => async move {
+                let demo = wnd.get_selected_demo().unwrap();
+                let _ = wnd.rcon_manager().borrow_mut().play_demo(&demo).await;
+
+            }));
+        }));
+
         self.selection().connect_selection_changed(clone!(@weak self as wnd => move|_,_,_|{
             let demo = wnd.get_selected_demo();
             if demo.is_none(){

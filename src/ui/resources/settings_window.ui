@@ -11,6 +11,11 @@
           <object class="AdwPreferencesGroup">
             <property name="title">General</property>
             <child>
+              <object class="AdwSwitchRow" id="doubleclick_play_switch">
+                <property name="title">Doubleclick to play demo</property>
+              </object>
+            </child>
+            <child>
               <object class="AdwSpinRow" id="event_predelay_entry">
                 <property name="title">Event skip offset</property>
                 <property name="subtitle">How many seconds before the event the playback should start</property>
