@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 mod demo_manager;
 use demo_manager::DemoManager;
 

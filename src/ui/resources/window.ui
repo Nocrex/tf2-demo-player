@@ -409,7 +409,7 @@
                             </child>
                             <child type="start">
                               <object class="GtkButton" id="event_edit">
-                                <property name="icon-name">edit-symbolic</property>
+                                <property name="icon-name">document-edit-symbolic</property>
                                 <property name="tooltip-text">Edit selected event</property>
                               </object>
                             </child>

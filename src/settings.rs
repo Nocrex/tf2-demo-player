@@ -2,13 +2,26 @@ use std::fs;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct Settings {
     pub demo_folder_path: String,
     pub rcon_pw: String,
+    pub event_skip_predelay: f32,
 
     #[serde(skip)]
     pub first_launch: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            demo_folder_path: Default::default(),
+            rcon_pw: Default::default(),
+            event_skip_predelay: 30.0,
+            first_launch: false
+        }
+    }
 }
 
 const SETTINGS_PATH: &str = "settings.json";
