@@ -72,6 +72,8 @@ mod imp {
         pub skip_backward_button: TemplateChild<Button>,
         #[template_child]
         pub skip_forward_button: TemplateChild<Button>,
+        #[template_child]
+        pub convert_to_replay_button: TemplateChild<Button>,
         
         #[template_child]
         pub detail_edit_cancel: TemplateChild<Button>,
@@ -230,6 +232,12 @@ impl Window {
             "delete" => true,
             _ => false
         }
+    }
+    
+    pub async fn notice_dialog(&self, title: &str, message: &str) {
+        let ad = adw::AlertDialog::builder().default_response("ok").close_response("ok").body(message).heading(title).build();
+        ad.add_response("ok", "OK");
+        ad.choose_future(self).await;
     }
 
     fn get_selected_demo(&self) -> Option<Demo>{
@@ -408,6 +416,15 @@ impl Window {
             let tps = wnd.get_current_tps();
             wnd.imp().playbar.set_value(wnd.imp().playbar.value() + 30.0*tps as f64);
         }));
+        
+        self.imp().convert_to_replay_button.connect_clicked(clone!(@weak self as wnd => move |_|{
+            glib::spawn_future_local(clone!(@weak wnd => async move {
+                match wnd.get_selected_demo().unwrap().convert_to_replay(async_std::path::Path::new(&wnd.settings().borrow().replay_folder_path)).await {
+                    Ok(_) => wnd.notice_dialog("Replay created successfully", "").await,
+                    Err(e) => wnd.notice_dialog("Failed to create replay", &e.to_string()).await,
+                };
+            }));
+        }));
 
         self.imp().detail_edit_cancel.connect_clicked(clone!(@weak self as wnd => move |_|{
             let val = wnd.imp().playbar.value();
@@ -481,7 +498,7 @@ impl Window {
             let name_label = Label::builder().halign(gtk::Align::Start).build();
             list_item.property_expression("item").chain_property::<EventObject>("name").bind(&name_label, "label", Widget::NONE);
 
-            let seek_button = Button::builder().icon_name("find-location-symbolic").vexpand(false).valign(gtk::Align::Center).build();
+            let seek_button = Button::builder().icon_name("find-location-symbolic").tooltip_text("Jump to this event").vexpand(false).valign(gtk::Align::Center).build();
             seek_button.connect_clicked(clone!(@weak wnd, @strong list_item => move |_|{
                 glib::spawn_future_local(clone!(@weak wnd, @weak list_item => async move {
                     let offset = (wnd.get_current_tps() * wnd.settings().borrow().event_skip_predelay) as u32;
@@ -699,7 +716,6 @@ impl Window {
             glib::spawn_future_local(clone!(@weak wnd => async move {
                 let demo = wnd.get_selected_demo().unwrap();
                 let _ = wnd.rcon_manager().borrow_mut().play_demo(&demo).await;
-
             }));
         }));
 

@@ -3,6 +3,7 @@
   <requires lib="gtk" version="4.0"/>
   <object class="AdwPreferencesWindow" id="settings_window">
     <property name="modal">true</property>
+    <property name="search-enabled">false</property>
     <child>
       <object class="AdwPreferencesPage">
         <property name="icon_name">preferences-system-symbolic</property>
@@ -28,6 +29,11 @@
                     <property name="step-increment">0.1</property>
                   </object>
                 </property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwEntryRow" id="replay_folder_entry">
+                <property name="title">Replay folder</property>
               </object>
             </child>
           </object>

@@ -16,7 +16,7 @@
   </menu>
   <template class="TFDemoPlayer" parent="AdwApplicationWindow">
     <property name="width-request">1000</property>
-    <property name="height-request">800</property>
+    <property name="height-request">850</property>
     <property name="title">Demo Player</property>
     <child>
       <object class="AdwToolbarView">
@@ -177,6 +177,17 @@
                               <object class="GtkButton" id="skip_forward_button">
                                 <property name="icon-name">media-seek-forward-symbolic</property>
                                 <property name="tooltip-text">+30s</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkSeparator">
+                                <property name="orientation">1</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="convert_to_replay_button">
+                                <property name="icon-name">document-export-symbolic</property>
+                                <property name="tooltip-text">Convert to replay</property>
                               </object>
                             </child>
                           </object>
