@@ -84,5 +84,15 @@ impl SettingsWindow {
             let rcon = wnd.rcon_manager();
             rcon.replace(RconManager::new(settings.borrow().rcon_pw.clone()));
         }));
+
+        tf_folder_entry.connect_changed(clone!(@weak tf_folder_entry, @weak self.widget as settings_wnd => move |_|{
+           glib::spawn_future_local(clone!(@weak tf_folder_entry, @weak settings_wnd => async move {
+                if !async_std::path::PathBuf::from(tf_folder_entry.text().to_string()).join("tf").is_dir().await {
+                    tf_folder_entry.set_title("TF2 folder (invalid)");
+                }else{
+                    tf_folder_entry.set_title("TF2 folder");
+                }
+           })); 
+        }));
     }
 }

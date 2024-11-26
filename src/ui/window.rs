@@ -425,7 +425,7 @@ impl Window {
                     wnd.notice_dialog("TF2 folder does not exist or cannot be accessed", "Please check your TF2 folder setting").await;
                     return;
                 }
-                let replay_folder = tf_folder_path.join("replay").join("client").join("replays");
+                let replay_folder = tf_folder_path.join("tf").join("replay").join("client").join("replays");
                 if demo.has_replay(&replay_folder).await {
                     wnd.notice_dialog("Demo already converted", "").await;
                     return;
