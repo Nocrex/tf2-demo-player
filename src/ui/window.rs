@@ -271,17 +271,23 @@ impl Window {
         let demo_manager = self.demo_manager();
         let demo_model = self.imp().demo_model.borrow().clone().unwrap();
 
-        let model_set: HashSet<String, RandomState> = HashSet::from_iter(demo_model.into_iter().map(|d|d.unwrap().downcast::<DemoObject>().unwrap().name()));
-        let data_set: HashSet<String, RandomState> = HashSet::from_iter(demo_manager.borrow_mut().get_demos().into_iter().map(|t|t.0.to_owned()));
+        let model_set: HashSet<(String, u64), RandomState> = HashSet::from_iter(demo_model.into_iter().map(|d|{
+            let demo = d.unwrap().downcast::<DemoObject>().unwrap();
+            (demo.name(), demo.size())
+        }));
+        let data_set: HashSet<(String, u64), RandomState> = HashSet::from_iter(demo_manager.borrow_mut().get_demos().into_iter().map(|t|{
+            let demo = t.1;
+            (demo.filename.to_owned(), demo.metadata.as_ref().unwrap().len())
+        }));
         
         demo_model.retain(|d|{
-            let d = d.downcast_ref::<DemoObject>().unwrap().name();
-            data_set.contains(&d)
+            let d = d.downcast_ref::<DemoObject>().unwrap();
+            data_set.contains(&(d.name(), d.size()))
         });
 
         let added = data_set.difference(&model_set);
         for dn in added {
-            demo_model.append(&DemoObject::new(demo_manager.borrow().get_demo(&dn).unwrap()));
+            demo_model.append(&DemoObject::new(demo_manager.borrow().get_demo(&dn.0).unwrap()));
         }
     }
 
