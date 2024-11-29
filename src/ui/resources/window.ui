@@ -47,7 +47,7 @@
             </child>
             <child type="end">
               <object class="GtkButton" id="reload_button">
-                <property name="icon-name">object-rotate-right-symbolic</property>
+                <property name="icon-name">view-refresh-symbolic</property>
                 <property name="tooltip-text">Reload demo folder</property>
               </object>
             </child>
