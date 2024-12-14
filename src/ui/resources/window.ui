@@ -28,7 +28,7 @@
               </object>
             </property>
             <child type="start">
-              <object class="GtkButton" id="button_open_folder">
+              <object class="AdwSplitButton" id="button_open_folder">
                 <property name="icon-name">folder-symbolic</property>
                 <property name="tooltip-text">Select demo folder</property>
               </object>
