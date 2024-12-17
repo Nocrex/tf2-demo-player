@@ -77,6 +77,8 @@ mod imp {
         pub skip_forward_button: TemplateChild<Button>,
         #[template_child]
         pub convert_to_replay_button: TemplateChild<Button>,
+        #[template_child]
+        pub demo_inspection_button: TemplateChild<Button>,
         
         #[template_child]
         pub detail_edit_cancel: TemplateChild<Button>,
@@ -492,6 +494,14 @@ impl Window {
                         Err(e) => wnd.notice_dialog("Failed to create replay", &e.to_string()).await,
                     };
                 }
+            }));
+        }));
+
+        self.imp().demo_inspection_button.connect_clicked(clone!(@weak self as wnd => move |_|{
+            glib::spawn_future_local(clone!(@weak wnd => async move {
+                let mut demo = wnd.get_selected_demo().unwrap();
+                demo.full_analysis().await.expect("");
+                println!("{:#?}", demo.match_data);
             }));
         }));
 
