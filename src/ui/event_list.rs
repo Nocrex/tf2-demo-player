@@ -2,24 +2,24 @@ use adw::prelude::*;
 use gtk::gio;
 use relm4::prelude::*;
 
-use crate::ui::event_object::EventObject;
 use crate::demo_manager::{Demo, Event};
+use crate::ui::event_object::EventObject;
 
 #[derive(Debug)]
-pub enum EventListOut{
+pub enum EventListOut {
     JumpTo(Event),
 }
 
 #[derive(Debug)]
-pub enum EventListMsg{
+pub enum EventListMsg {
     Display(Option<Demo>),
 }
 
-pub struct EventListModel{
+pub struct EventListModel {
     list_model: gio::ListStore,
     selection_model: gtk::SingleSelection,
-    
-    demo: Option<Demo>
+
+    demo: Option<Demo>,
 }
 
 #[relm4::component(pub)]
@@ -27,8 +27,8 @@ impl SimpleComponent for EventListModel {
     type Init = ();
     type Input = EventListMsg;
     type Output = EventListOut;
-    
-    view!{
+
+    view! {
         adw::ToolbarView {
             #[wrap(Some)]
             set_content = &gtk::ScrolledWindow{
@@ -46,7 +46,7 @@ impl SimpleComponent for EventListModel {
 
                             let name_label = gtk::Label::builder().halign(gtk::Align::Start).build();
                             list_item.property_expression("item").chain_property::<EventObject>("name").bind(&name_label, "label", gtk::Widget::NONE);
-                            
+
                             let seek_button = gtk::Button::builder().icon_name("find-location-symbolic").tooltip_text("Jump to this event").vexpand(false).valign(gtk::Align::Center).build();
                             let button_list_item = list_item.clone();
                             let button_sender = sender.clone();
@@ -60,7 +60,7 @@ impl SimpleComponent for EventListModel {
 
                             let type_label = gtk::Label::builder().halign(gtk::Align::Center).justify(gtk::Justification::Center).build();
                             list_item.property_expression("item").chain_property::<EventObject>("bookmark-type").bind(&type_label, "label", gtk::Widget::NONE);
-                            
+
                             let time_label = gtk::Label::builder().halign(gtk::Align::End).justify(gtk::Justification::Right).margin_end(20).margin_start(20).build();
                             list_item.property_expression("item").chain_closure_with_callback(move |v|{
                                 if ! v[1].is::<EventObject>(){
@@ -102,31 +102,26 @@ impl SimpleComponent for EventListModel {
             }
         }
     }
-    
+
     fn init(
-            _: Self::Init,
-            root: Self::Root,
-            sender: ComponentSender<Self>,
-        ) -> ComponentParts<Self> {
-    
+        _: Self::Init,
+        root: Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
         let list_model = gio::ListStore::new::<EventObject>();
 
-        let model = EventListModel{
+        let model = EventListModel {
             selection_model: gtk::SingleSelection::new(Some(list_model.clone())),
             list_model,
             demo: None,
         };
-        
+
         let widgets = view_output!();
 
-        ComponentParts{model, widgets}
+        ComponentParts { model, widgets }
     }
-    
-    fn update(
-            &mut self,
-            message: Self::Input,
-            sender: ComponentSender<Self>,
-        ) {
+
+    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
             EventListMsg::Display(dem) => {
                 self.list_model.remove_all();
@@ -135,7 +130,7 @@ impl SimpleComponent for EventListModel {
                     for event in &demo.events {
                         self.list_model.append(&EventObject::from(event, tps));
                     }
-                } 
+                }
                 self.demo = dem;
             }
         }

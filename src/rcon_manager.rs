@@ -1,4 +1,4 @@
-use rcon::{Connection, Error, AsyncStdStream};
+use rcon::{AsyncStdStream, Connection, Error};
 
 use crate::demo_manager::Demo;
 
@@ -42,9 +42,9 @@ pub struct RconManager {
 
 impl RconManager {
     pub fn new(password: String) -> Self {
-        RconManager{
+        RconManager {
             conn: None,
-            password
+            password,
         }
     }
 
@@ -52,9 +52,12 @@ impl RconManager {
         self.conn.is_some()
     }
 
-    pub async fn connect(&mut self) -> Result<(), Error>{
+    pub async fn connect(&mut self) -> Result<(), Error> {
         let mut err: Result<(), Error> = Ok(());
-        match <Connection<AsyncStdStream>>::builder().connect("localhost:27015", &self.password).await {
+        match <Connection<AsyncStdStream>>::builder()
+            .connect("localhost:27015", &self.password)
+            .await
+        {
             Ok(c) => self.conn = Some(c),
             Err(e) => err = Err(e),
         };
@@ -64,14 +67,14 @@ impl RconManager {
         } else {
             log::info!("Successfully connected to TF2");
         }
-        
+
         err
     }
 
     pub async fn send_command(&mut self, command: Command<'_>) -> Result<String, Error> {
         log::debug!("Sending command: {}", command.get_command());
         if !self.is_connected() {
-            if let Err(e) = self.connect().await{
+            if let Err(e) = self.connect().await {
                 return Err(e);
             }
         }
@@ -91,7 +94,7 @@ impl RconManager {
         res
     }
 
-    pub async fn play_demo(&mut self, demo: &Demo) -> Result<String, Error>{
+    pub async fn play_demo(&mut self, demo: &Demo) -> Result<String, Error> {
         self.send_command(Command::PlayDemo(demo)).await
     }
 
@@ -102,5 +105,4 @@ impl RconManager {
     pub async fn stop_playback(&mut self) -> Result<String, Error> {
         self.send_command(Command::StopPlayback()).await
     }
-
 }

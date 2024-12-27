@@ -25,8 +25,8 @@ impl Default for Settings {
             event_skip_predelay: 30.0,
             doubleclick_play: false,
             recent_folders: Vec::new(),
-            
-            first_launch: false
+
+            first_launch: false,
         }
     }
 }
@@ -35,21 +35,19 @@ const SETTINGS_PATH: &str = "settings.json";
 
 impl Settings {
     pub fn load() -> Self {
-        match fs::read(SETTINGS_PATH){
-            Ok(content) => {
-                serde_json::from_slice::<Settings>(&content).unwrap_or_default()
-            },
+        match fs::read(SETTINGS_PATH) {
+            Ok(content) => serde_json::from_slice::<Settings>(&content).unwrap_or_default(),
             Err(e) => {
                 log::warn!("Couldn't load settings file, {}; Creating default", e);
                 let mut s = Settings::default();
                 s.first_launch = true;
                 s
-            },
+            }
         }
     }
 
     pub fn save(&self) {
-        if let Err(e) = fs::write(SETTINGS_PATH, serde_json::to_string(self).unwrap()){
+        if let Err(e) = fs::write(SETTINGS_PATH, serde_json::to_string(self).unwrap()) {
             log::warn!("Couldn't save settings file, {}", e);
         }
     }

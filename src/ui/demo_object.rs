@@ -1,12 +1,12 @@
 use std::time::SystemTime;
 
-use gtk::glib::Object;
 use gtk::glib;
+use gtk::glib::Object;
 use relm4::gtk;
 
 use crate::demo_manager::Demo;
 
-glib::wrapper!{
+glib::wrapper! {
     pub struct DemoObject(ObjectSubclass<imp::DemoObject>);
 }
 
@@ -16,16 +16,23 @@ impl DemoObject {
             .property("name", demo.filename.to_owned())
             .property("bookmarks", demo.events.len() as u32);
 
-        if let Some(header) = &demo.header{
-            b = b.property("map", header.map.to_owned())
+        if let Some(header) = &demo.header {
+            b = b
+                .property("map", header.map.to_owned())
                 .property("username", header.nick.to_owned())
                 .property("duration", header.duration);
         }
 
         if let Some(meta) = &demo.metadata {
-            b = b.property("created", meta.created().map_or(0, |t|
-                t.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as i64
-                ))
+            b = b
+                .property(
+                    "created",
+                    meta.created().map_or(0, |t| {
+                        t.duration_since(SystemTime::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis() as i64
+                    }),
+                )
                 .property("size", meta.len());
         }
 
@@ -34,8 +41,8 @@ impl DemoObject {
 }
 
 mod imp {
-    use std::cell::RefCell;
     use std::cell::Cell;
+    use std::cell::RefCell;
 
     use glib::Properties;
     use gtk::glib;
@@ -61,9 +68,8 @@ mod imp {
         #[property(get, set)]
         created: Cell<i64>,
         #[property(get, set)]
-        has_replay: Cell<bool>
+        has_replay: Cell<bool>,
     }
-
 
     #[glib::object_subclass]
     impl ObjectSubclass for DemoObject {
