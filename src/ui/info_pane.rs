@@ -24,6 +24,8 @@ pub enum InfoPaneOut {
 pub enum InfoPaneMsg {
     Display(Option<Demo>),
     DemoEdited(Demo),
+
+    Rcon(RconAction),
 }
 
 pub struct InfoPaneModel {
@@ -75,7 +77,7 @@ impl Component for InfoPaneModel {
         let controls = ControlsModel::builder()
             .launch(())
             .forward(sender.input_sender(), |msg| match msg {
-                ControlsOut::Rcon(act) => todo!(),
+                ControlsOut::Rcon(act) => InfoPaneMsg::Rcon(act),
                 ControlsOut::ConvertReplay(name) => todo!(),
                 ControlsOut::Inspect(name) => todo!(),
 
@@ -118,6 +120,9 @@ impl Component for InfoPaneModel {
             }
             InfoPaneMsg::DemoEdited(demo) => {
                 self.edited_demo = Some(demo.clone());
+            }
+            InfoPaneMsg::Rcon(act) => {
+                let _ = sender.output(InfoPaneOut::Rcon(act));
             }
         }
     }

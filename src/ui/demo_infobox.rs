@@ -20,14 +20,14 @@ pub enum DemoInfoboxMsg {
 
 pub struct DemoInfoboxModel {
     demo: Option<Demo>,
-    notes: gtk::TextView,
 }
 
 #[relm4::component(pub)]
-impl SimpleComponent for DemoInfoboxModel {
+impl Component for DemoInfoboxModel {
     type Init = ();
     type Input = DemoInfoboxMsg;
     type Output = DemoInfoboxOut;
+    type CommandOutput = ();
 
     view! {
         gtk::ScrolledWindow{
@@ -143,17 +143,12 @@ impl SimpleComponent for DemoInfoboxModel {
         root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let mut model = DemoInfoboxModel {
-            demo: None,
-            notes: gtk::TextView::new(),
-        };
+        let model = DemoInfoboxModel { demo: None };
 
         let widgets = view_output!();
 
-        model.notes = widgets.notes.clone();
-
         let notes_sender = sender.clone();
-        model.notes.buffer().connect_changed(move |buf| {
+        widgets.notes.buffer().connect_changed(move |buf| {
             notes_sender.input(DemoInfoboxMsg::NotesChanged(
                 buf.text(&buf.start_iter(), &buf.end_iter(), true)
                     .to_string(),
@@ -163,11 +158,17 @@ impl SimpleComponent for DemoInfoboxModel {
         ComponentParts { model, widgets }
     }
 
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+    fn update_with_view(
+        &mut self,
+        widgets: &mut Self::Widgets,
+        message: Self::Input,
+        sender: ComponentSender<Self>,
+        _: &Self::Root,
+    ) {
         match message {
             DemoInfoboxMsg::Display(demo) => {
                 self.demo = demo;
-                self.notes.buffer().set_text(
+                widgets.notes.buffer().set_text(
                     self.demo
                         .as_ref()
                         .and_then(|d| d.notes.as_ref())
@@ -193,5 +194,6 @@ impl SimpleComponent for DemoInfoboxModel {
                 let _ = opener::reveal(path).inspect_err(|e| log::warn!("{}", e));
             }
         }
+        self.update_view(widgets, sender);
     }
 }
