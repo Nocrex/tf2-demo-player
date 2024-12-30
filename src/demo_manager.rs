@@ -8,7 +8,7 @@ use chrono::{Datelike, Timelike};
 use glob::glob;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::Metadata, rc::Rc, time::SystemTime};
+use std::{collections::HashMap, fs::Metadata, time::SystemTime};
 use tf_demo_parser::demo::header::Header;
 use trash;
 
@@ -19,11 +19,13 @@ struct EventContainer {
     notes: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
 pub struct Event {
     pub tick: u32,
-    pub value: String,
-    pub name: String,
+    #[serde(rename = "value")]
+    pub title: String,
+    #[serde(rename = "name")]
+    pub ev_type: String,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +69,7 @@ impl Demo {
         if let Ok(char_bytes) = file {
             let parsed: EventContainer = serde_json::from_slice(&char_bytes).unwrap();
             self.events = parsed.events;
+            self.events.sort_by_key(|e| e.tick);
             self.notes = parsed.notes;
         }
 

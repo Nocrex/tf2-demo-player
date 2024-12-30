@@ -1,13 +1,11 @@
 use adw::prelude::*;
-use gtk::glib;
-use gtk::prelude::*;
 use relm4::prelude::*;
 
 use crate::demo_manager::Demo;
 
 #[derive(Debug)]
 pub enum DemoInfoboxOut {
-    Dirty(Demo),
+    Dirty(bool),
 }
 
 #[derive(Debug)]
@@ -20,6 +18,7 @@ pub enum DemoInfoboxMsg {
 
 pub struct DemoInfoboxModel {
     demo: Option<Demo>,
+    pub notes: Option<String>,
 }
 
 #[relm4::component(pub)]
@@ -56,7 +55,6 @@ impl Component for DemoInfoboxModel {
                     set_secondary_icon_activatable: true,
                     set_secondary_icon_name: Some("folder-open-symbolic"),
                     set_secondary_icon_tooltip_text: Some("Reveal in files"),
-                    //connect_icon_press TODO
                     connect_icon_press[sender] => move |_,_|{
                         sender.input(DemoInfoboxMsg::OpenFolder);
                     },
@@ -133,6 +131,15 @@ impl Component for DemoInfoboxModel {
                 #[name="notes"]
                 attach[0,6,2,1] = &gtk::TextView{
                     set_vexpand: true,
+                    #[wrap(Some)]
+                    set_buffer = &gtk::TextBuffer{
+                        connect_changed[sender] => move |buf|{
+                            sender.input(DemoInfoboxMsg::NotesChanged(
+                                buf.text(&buf.start_iter(), &buf.end_iter(), true)
+                                    .to_string(),
+                            ));
+                        }
+                    }
                 },
             }
         }
@@ -143,17 +150,12 @@ impl Component for DemoInfoboxModel {
         root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let model = DemoInfoboxModel { demo: None };
+        let model = DemoInfoboxModel {
+            demo: None,
+            notes: None,
+        };
 
         let widgets = view_output!();
-
-        let notes_sender = sender.clone();
-        widgets.notes.buffer().connect_changed(move |buf| {
-            notes_sender.input(DemoInfoboxMsg::NotesChanged(
-                buf.text(&buf.start_iter(), &buf.end_iter(), true)
-                    .to_string(),
-            ));
-        });
 
         ComponentParts { model, widgets }
     }
@@ -165,6 +167,7 @@ impl Component for DemoInfoboxModel {
         sender: ComponentSender<Self>,
         _: &Self::Root,
     ) {
+        //log::debug!("{:?}", message);
         match message {
             DemoInfoboxMsg::Display(demo) => {
                 self.demo = demo;
@@ -184,10 +187,11 @@ impl Component for DemoInfoboxModel {
                     new_notes = Some(notes);
                 }
 
-                if new_notes.as_ref() != self.demo.as_ref().and_then(|d| d.notes.as_ref()) {
-                    self.demo.as_mut().unwrap().notes = new_notes;
-                    let _ = sender.output(DemoInfoboxOut::Dirty(self.demo.clone().unwrap()));
-                }
+                let _ = sender.output(DemoInfoboxOut::Dirty(
+                    new_notes.as_ref() != self.demo.as_ref().and_then(|d| d.notes.as_ref()),
+                ));
+
+                self.notes = new_notes;
             }
             DemoInfoboxMsg::OpenFolder => {
                 let path = self.demo.as_ref().unwrap().path.as_path();

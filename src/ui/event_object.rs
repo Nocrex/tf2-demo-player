@@ -11,10 +11,10 @@ glib::wrapper! {
 impl EventObject {
     pub fn from(event: &Event, tps: f32) -> Self {
         Object::builder()
-            .property("name", &event.value)
+            .property("name", &event.title)
             .property("tick", event.tick)
-            .property("bookmark-type", &event.name)
-            .property("time", crate::util::ticks_to_sec(event.tick, tps))
+            .property("bookmark-type", &event.ev_type)
+            .property("tps", tps)
             .build()
     }
 
@@ -23,18 +23,28 @@ impl EventObject {
             .property("name", name)
             .property("tick", tick)
             .property("bookmark-type", bookmark_type)
-            .property("time", crate::util::ticks_to_sec(tick, tps))
+            .property("tps", tps)
             .build()
+    }
+
+    pub fn time(&self) -> f32 {
+        crate::util::ticks_to_sec(self.tick(), self.tps())
+    }
+}
+
+impl Into<Event> for &EventObject {
+    fn into(self) -> Event {
+        Event {
+            tick: self.tick(),
+            title: self.name(),
+            ev_type: self.bookmark_type(),
+        }
     }
 }
 
 impl Into<Event> for EventObject {
     fn into(self) -> Event {
-        Event {
-            tick: self.tick(),
-            value: self.name(),
-            name: self.bookmark_type(),
-        }
+        (&self).into()
     }
 }
 
@@ -58,7 +68,7 @@ mod imp {
         #[property(get, set)]
         bookmark_type: RefCell<String>,
         #[property[get,set]]
-        time: Cell<f32>,
+        tps: Cell<f32>,
     }
 
     #[glib::object_subclass]

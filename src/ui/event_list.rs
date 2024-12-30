@@ -8,11 +8,20 @@ use crate::ui::event_object::EventObject;
 #[derive(Debug)]
 pub enum EventListOut {
     JumpTo(Event),
+    PlayheadTo(u32),
+
+    AddEvent,
+    EditEvent(Event),
+    Dirty,
 }
 
 #[derive(Debug)]
 pub enum EventListMsg {
     Display(Option<Demo>),
+    Event(Event, bool),
+
+    Edit,
+    Delete,
 }
 
 pub struct EventListModel {
@@ -22,9 +31,18 @@ pub struct EventListModel {
     demo: Option<Demo>,
 }
 
+impl EventListModel {
+    pub fn events(&self) -> Vec<Event> {
+        self.list_model
+            .iter::<gtk::glib::Object>()
+            .map(|evob| evob.unwrap().downcast_ref::<EventObject>().unwrap().into())
+            .collect::<Vec<Event>>()
+    }
+}
+
 #[relm4::component(pub)]
 impl SimpleComponent for EventListModel {
-    type Init = ();
+    type Init = adw::Window;
     type Input = EventListMsg;
     type Output = EventListOut;
 
@@ -35,10 +53,12 @@ impl SimpleComponent for EventListModel {
                 #[name="list_view"]
                 gtk::ListView{
                     set_show_separators: true,
-                    #[wrap(Some)]
-                    set_model = &gtk::SingleSelection{
-                        set_model: Some(&model.list_model)
+                    connect_activate[sender] => move|list_view,ind|{
+                        let ev = list_view.model().unwrap().item(ind).and_downcast::<EventObject>().unwrap();
+                        let _ = sender.output(EventListOut::PlayheadTo(ev.tick()));
                     },
+                    set_model: Some(&model.selection_model),
+
                     #[wrap(Some)]
                     set_factory = &gtk::SignalListItemFactory{
                         connect_setup[sender] => move |_,li|{
@@ -50,7 +70,7 @@ impl SimpleComponent for EventListModel {
                             let seek_button = gtk::Button::builder().icon_name("find-location-symbolic").tooltip_text("Jump to this event").vexpand(false).valign(gtk::Align::Center).build();
                             let button_list_item = list_item.clone();
                             let button_sender = sender.clone();
-                            seek_button.connect_clicked(move |b|{
+                            seek_button.connect_clicked(move |_|{
                                 let _ = button_sender.output(EventListOut::JumpTo(button_list_item.property::<EventObject>("item").into()));
                             });
 
@@ -82,6 +102,9 @@ impl SimpleComponent for EventListModel {
                     set_tooltip_text: Some("Add new event"),
                     #[watch]
                     set_sensitive: model.demo.is_some(),
+                    connect_clicked[sender] => move|_|{
+                        let _ = sender.output(EventListOut::AddEvent);
+                    },
                 },
 
                 pack_start = &gtk::Button{
@@ -89,6 +112,7 @@ impl SimpleComponent for EventListModel {
                     set_tooltip_text: Some("Remove selected event"),
                     #[watch]
                     set_sensitive: model.selection_model.selected_item().is_some(),
+                    connect_clicked => EventListMsg::Delete,
                 },
 
                 pack_start = &gtk::Button{
@@ -96,6 +120,7 @@ impl SimpleComponent for EventListModel {
                     set_tooltip_text: Some("Edit selected event"),
                     #[watch]
                     set_sensitive: model.selection_model.selected_item().is_some(),
+                    connect_clicked => EventListMsg::Edit,
                 },
             }
         }
@@ -120,6 +145,7 @@ impl SimpleComponent for EventListModel {
     }
 
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+        //log::debug!("{:?}", message);
         match message {
             EventListMsg::Display(dem) => {
                 self.list_model.remove_all();
@@ -130,6 +156,36 @@ impl SimpleComponent for EventListModel {
                     }
                 }
                 self.demo = dem;
+            }
+            EventListMsg::Delete => {
+                self.list_model.remove(self.selection_model.selected());
+                //self.selection_model
+                //    .emit_by_name::<()>("selection-changed", &[&0u32, &0u32]);
+                let _ = sender.output(EventListOut::Dirty);
+            }
+            EventListMsg::Edit => {
+                let _ = sender.output(EventListOut::EditEvent(
+                    self.selection_model
+                        .selected_item()
+                        .and_downcast_ref::<EventObject>()
+                        .unwrap()
+                        .into(),
+                ));
+            }
+            EventListMsg::Event(event, edit) => {
+                if edit {
+                    self.list_model.remove(self.selection_model.selected());
+                }
+                self.list_model.insert_sorted(
+                    &EventObject::from(&event, self.demo.as_ref().unwrap().tps()),
+                    |e1, e2| {
+                        e1.downcast_ref::<EventObject>()
+                            .unwrap()
+                            .tick()
+                            .cmp(&e2.downcast_ref::<EventObject>().unwrap().tick())
+                    },
+                );
+                let _ = sender.output(EventListOut::Dirty);
             }
         }
     }
