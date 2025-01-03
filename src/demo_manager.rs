@@ -36,6 +36,7 @@ pub struct Demo {
     pub events: Vec<Event>,
     pub notes: Option<String>,
     pub metadata: Option<Metadata>,
+    pub inspection: Option<crate::inspector::MatchState>,
 }
 
 impl Demo {
@@ -48,6 +49,7 @@ impl Demo {
             events: Vec::new(),
             notes: None,
             metadata: None,
+            inspection: None,
         }
     }
 
@@ -81,14 +83,19 @@ impl Demo {
             .ok();
     }
 
-    pub async fn full_analysis(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn full_analysis(
+        &mut self,
+    ) -> Result<crate::inspector::MatchState, Box<dyn std::error::Error>> {
         let f = fs::read(&self.path).await?;
         let demo = tf_demo_parser::Demo::new(&f);
-        let parser = tf_demo_parser::DemoParser::new(demo.get_stream());
+        let parser = tf_demo_parser::DemoParser::new_with_analyser(
+            demo.get_stream(),
+            crate::inspector::Analyser::new(),
+        );
 
         let (_, state) = parser.parse()?;
-        //self.match_data = Some(Rc::new(state));
-        Ok(())
+        self.inspection = Some(state.clone());
+        Ok(state)
     }
 
     pub async fn has_replay(&self, replays_folder: &Path) -> bool {

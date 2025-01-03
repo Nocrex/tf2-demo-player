@@ -5,6 +5,7 @@ use adw::prelude::*;
 use relm4::prelude::*;
 
 use crate::demo_manager::Demo;
+use crate::icon_names;
 use crate::settings::Settings;
 use crate::util::sec_to_timestamp;
 use crate::util::ticks_to_sec;
@@ -125,19 +126,19 @@ impl AsyncComponent for ControlsModel {
                     set_spacing: 5,
 
                     gtk::Button{
-                        set_icon_name: "media-playback-start-symbolic",
+                        set_icon_name: icon_names::PLAY_LARGE,
                         set_tooltip_text: Some("Play demo"),
                         connect_clicked => ControlsMsg::Play,
                     },
 
                     gtk::Button{
-                        set_icon_name: "find-location-symbolic",
+                        set_icon_name: icon_names::PIN_LOCATION,
                         set_tooltip_text: Some("Skip to tick"),
                         connect_clicked => ControlsMsg::GotoPlayhead,
                     },
 
                     gtk::Button{
-                        set_icon_name: "media-playback-stop-symbolic",
+                        set_icon_name: icon_names::STOP_LARGE,
                         set_tooltip_text: Some("Stop Playback"),
                         connect_clicked => ControlsMsg::Stop,
                     },
@@ -147,13 +148,13 @@ impl AsyncComponent for ControlsModel {
                     },
 
                     gtk::Button{
-                        set_icon_name: "media-seek-backward-symbolic",
+                        set_icon_name: icon_names::SKIP_BACKWARDS_30,
                         set_tooltip_text: Some("-30s"),
                         connect_clicked => ControlsMsg::SeekBackward,
                     },
 
                     gtk::Button{
-                        set_icon_name: "media-seek-forward-symbolic",
+                        set_icon_name: icon_names::SKIP_FORWARD_30,
                         set_tooltip_text: Some("+30s"),
                         connect_clicked => ControlsMsg::SeekForward,
                     },
@@ -163,13 +164,13 @@ impl AsyncComponent for ControlsModel {
                     },
 
                     gtk::Button{
-                        set_icon_name: "document-send-symbolic",
+                        set_icon_name: icon_names::SHARE,
                         set_tooltip_text: Some("Convert to replay"),
                         connect_clicked => ControlsMsg::ConvertReplay,
                     },
 
                     gtk::Button{
-                        set_icon_name: "view-list-symbolic",
+                        set_icon_name: icon_names::LIST_COMPACT,
                         set_tooltip_text: Some("Inspect demo"),
                         connect_clicked => ControlsMsg::InspectDemo,
                     }
@@ -183,13 +184,13 @@ impl AsyncComponent for ControlsModel {
                     set_sensitive: model.dirty,
 
                     gtk::Button{
-                        set_icon_name: "edit-clear-all-symbolic",
+                        set_icon_name: icon_names::CROSS_SMALL_CIRCLE_OUTLINE,
                         set_tooltip_text: Some("Discard changes"),
                         connect_clicked => ControlsMsg::DiscardChanges,
                     },
 
                     gtk::Button{
-                        set_icon_name: "document-save-symbolic",
+                        set_icon_name: icon_names::ARROW_POINTING_AT_LINE_DOWN,
                         set_tooltip_text: Some("Save changes"),
                         connect_clicked => ControlsMsg::SaveChanges,
                     },

@@ -2,7 +2,7 @@ use adw::prelude::*;
 use gtk::glib;
 use relm4::prelude::*;
 
-use crate::{rcon_manager::RconManager, settings::Settings};
+use crate::{icon_names, rcon_manager::RconManager, settings::Settings};
 
 #[derive(Debug)]
 pub enum PreferencesMsg {
@@ -52,7 +52,7 @@ impl Component for PreferencesModel {
             },
 
             add = &adw::PreferencesPage {
-                set_icon_name: Some(&"preferences-system-symbolic"),
+                set_icon_name: Some(icon_names::SETTINGS),
                 set_title: "General",
 
                 adw::PreferencesGroup {

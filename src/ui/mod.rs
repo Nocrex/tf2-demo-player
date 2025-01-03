@@ -9,4 +9,5 @@ mod info_pane;
 mod settings_window;
 mod ui_util;
 mod window;
+mod about;
 pub use window::DemoPlayerModel;

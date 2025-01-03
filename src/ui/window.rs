@@ -8,6 +8,8 @@ use relm4::actions::RelmActionGroup;
 use relm4::prelude::*;
 
 use crate::demo_manager::Event;
+use crate::icon_names;
+use crate::ui::about::AboutMsg;
 use crate::ui::demo_list::*;
 use crate::ui::info_pane::InfoPaneMsg;
 use crate::ui::settings_window::*;
@@ -18,6 +20,7 @@ use crate::{
     settings::Settings,
 };
 
+use super::about::AboutModel;
 use super::info_pane::InfoPaneModel;
 use super::info_pane::InfoPaneOut;
 
@@ -56,6 +59,7 @@ relm4::new_stateless_action!(DeleteUnfinishedAction, AppMenu, "clean-unfinished"
 relm4::new_stateless_action!(DeleteUnmarkedAction, AppMenu, "clean-unmarked");
 
 relm4::new_stateful_action!(OpenFolderAction, AppMenu, "open-folder", String, ());
+relm4::new_stateless_action!(ShowAboutAction, AppMenu, "show-about");
 
 pub struct DemoPlayerModel {
     demo_manager: DemoManager,
@@ -65,6 +69,8 @@ pub struct DemoPlayerModel {
     selected_demo: Option<Demo>,
 
     preferences_wnd: Option<Controller<PreferencesModel>>,
+    about_wnd: Controller<AboutModel>,
+
     demo_list: Controller<DemoListModel>,
     demo_details: Controller<InfoPaneModel>,
 }
@@ -79,6 +85,7 @@ impl AsyncComponent for DemoPlayerModel {
     view! {
         #[name="main_window"]
         adw::Window {
+            set_icon_name: Some(icon_names::DEMOPLAYER_LOGO),
             set_title: Some("Demo Player"),
             set_size_request: (1000, 850),
 
@@ -89,7 +96,7 @@ impl AsyncComponent for DemoPlayerModel {
                     )),
 
                     pack_start = &adw::SplitButton{
-                        set_icon_name: "folder-symbolic",
+                        set_icon_name: icon_names::FOLDER_OPEN,
                         set_tooltip_text: Some("Select demo folder"),
                         set_dropdown_tooltip: "Recent folders",
                         connect_clicked => DemoPlayerMsg::SelectFolder,
@@ -104,18 +111,18 @@ impl AsyncComponent for DemoPlayerModel {
                     },
 
                     pack_end: app_menu_button = &gtk::MenuButton{
-                        set_icon_name: "open-menu-symbolic",
+                        set_icon_name: icon_names::MENU,
                         set_menu_model: Some(&app_menu)
                     },
 
                     pack_end = &gtk::Button{
-                        set_icon_name: "edit-delete-symbolic",
+                        set_icon_name: icon_names::USER_TRASH,
                         set_tooltip_text: Some("Delete selected demo(s)"),
                         connect_clicked => DemoPlayerMsg::DeleteSelected,
                     },
 
                     pack_end = &gtk::Button{
-                        set_icon_name: "view-refresh-symbolic",
+                        set_icon_name: icon_names::ARROW_CIRCULAR_TOP_RIGHT,
                         set_tooltip_text: Some("Reload demo folder"),
                         connect_clicked => DemoPlayerMsg::ReloadFolder,
                     }
@@ -142,6 +149,7 @@ impl AsyncComponent for DemoPlayerModel {
             "Settings" => OpenSettingsAction,
             "Delete 0s demos" => DeleteUnfinishedAction,
             "Delete demos without bookmarks" => DeleteUnmarkedAction,
+            "About" => ShowAboutAction,
         }
     }
 
@@ -166,11 +174,14 @@ impl AsyncComponent for DemoPlayerModel {
                 InfoPaneOut::Save(demo) => DemoPlayerMsg::DemoSave(demo),
             });
 
+        let about_wnd = AboutModel::builder().launch(root.clone()).detach();
+
         let model = Self {
             demo_manager: DemoManager::new(),
             rcon_manager: RconManager::new(settings.clone().borrow().rcon_pw.to_owned()),
             settings: settings,
             preferences_wnd: None,
+            about_wnd,
             demo_list,
             demo_details,
             selected_demo: None,
@@ -208,6 +219,13 @@ impl AsyncComponent for DemoPlayerModel {
                     open_folder_sender.input(DemoPlayerMsg::OpenFolder(val, true));
                 });
             group.add_action(open_folder_action);
+
+            let about_wnd_sender = model.about_wnd.sender().clone();
+            let show_about_action: RelmAction<ShowAboutAction> =
+                RelmAction::new_stateless(move |_| {
+                    about_wnd_sender.emit(AboutMsg::Open);
+                });
+            group.add_action(show_about_action);
 
             let actions = group.into_action_group();
             widgets
