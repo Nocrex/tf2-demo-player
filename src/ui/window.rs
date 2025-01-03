@@ -8,7 +8,6 @@ use relm4::actions::RelmActionGroup;
 use relm4::prelude::*;
 
 use crate::demo_manager::Event;
-use crate::icon_names;
 use crate::ui::about::AboutMsg;
 use crate::ui::demo_list::*;
 use crate::ui::info_pane::InfoPaneMsg;
@@ -85,7 +84,6 @@ impl AsyncComponent for DemoPlayerModel {
     view! {
         #[name="main_window"]
         adw::Window {
-            set_icon_name: Some(icon_names::DEMOPLAYER_LOGO),
             set_title: Some("Demo Player"),
             set_size_request: (1000, 850),
 
@@ -96,7 +94,7 @@ impl AsyncComponent for DemoPlayerModel {
                     )),
 
                     pack_start = &adw::SplitButton{
-                        set_icon_name: icon_names::FOLDER_OPEN,
+                        set_icon_name: "folder-symbolic",
                         set_tooltip_text: Some("Select demo folder"),
                         set_dropdown_tooltip: "Recent folders",
                         connect_clicked => DemoPlayerMsg::SelectFolder,
@@ -113,18 +111,18 @@ impl AsyncComponent for DemoPlayerModel {
                     },
 
                     pack_end: app_menu_button = &gtk::MenuButton{
-                        set_icon_name: icon_names::MENU,
+                        set_icon_name: "open-menu-symbolic",
                         set_menu_model: Some(&app_menu)
                     },
 
                     pack_end = &gtk::Button{
-                        set_icon_name: icon_names::USER_TRASH,
+                        set_icon_name: "edit-delete-symbolic",
                         set_tooltip_text: Some("Delete selected demo(s)"),
                         connect_clicked => DemoPlayerMsg::DeleteSelected,
                     },
 
                     pack_end = &gtk::Button{
-                        set_icon_name: icon_names::ARROW_CIRCULAR_TOP_RIGHT,
+                        set_icon_name: "view-refresh-symbolic",
                         set_tooltip_text: Some("Reload demo folder"),
                         connect_clicked => DemoPlayerMsg::ReloadFolder,
                     }

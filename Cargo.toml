@@ -23,7 +23,3 @@ relm4 = { version = "0.9.1", features = ["gnome_46", "libadwaita"] }
 relm4-components = { version = "0.9.1", features = ["libadwaita"] }
 num_enum = "0.7.3"
 parse-display = "0.10.0"
-relm4-icons = { version = "0.10.0-beta.1", features = ["icon-development-kit"] }
-
-[build-dependencies]
-relm4-icons-build = "0.10.0-beta.1"

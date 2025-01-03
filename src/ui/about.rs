@@ -1,8 +1,6 @@
 use adw::prelude::*;
 use relm4::prelude::*;
 
-use crate::icon_names;
-
 #[derive(Debug)]
 pub enum AboutMsg {
     Open,
@@ -26,7 +24,6 @@ impl Component for AboutModel {
             set_developer_name: "Nocrex",
             set_website: "https://github.com/Nocrex/tf2-demo-player",
             set_version: env!("CARGO_PKG_VERSION"),
-            set_application_icon: icon_names::DEMOPLAYER_LOGO,
 
             connect_close_attempt[sender] => move |_|{
                 sender.input(AboutMsg::Close);
