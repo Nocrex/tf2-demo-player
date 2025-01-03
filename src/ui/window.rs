@@ -104,7 +104,9 @@ impl AsyncComponent for DemoPlayerModel {
                         set_menu_model: Some(&{
                             let m_model = gio::Menu::new();
                             for folder in &model.settings.borrow().recent_folders {
-                                m_model.append(Some(folder), Some(&format!("app-menu.open-folder('{folder}')")));
+                                let item = gio::MenuItem::new(Some(folder), None);
+                                item.set_action_and_target_value(Some("app-menu.open-folder"), Some(&folder.to_variant()));
+                                m_model.append_item(&item);
                             }
                             m_model
                         }),
