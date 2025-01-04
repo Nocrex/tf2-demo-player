@@ -19,7 +19,7 @@ mod load_icons {
     pub fn setup() {
         let bytes = glib::Bytes::from_static(include_bytes!(concat!(
             env!("OUT_DIR"),
-            "/resources.gresource"
+            "/demoplayer.gresource"
         )));
         let resource = gio::Resource::from_data(&bytes).unwrap();
         gio::resources_register(&resource);
@@ -28,7 +28,10 @@ mod load_icons {
 
         let display = gtk::gdk::Display::default().unwrap();
         let theme = gtk::IconTheme::for_display(&display);
+        theme.set_search_path(&[]);
         theme.add_resource_path("/com/github/nocrex/tf2demoplayer/icons");
+
+        relm4_icons::initialize_icons();
     }
 }
 

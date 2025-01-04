@@ -4,7 +4,7 @@ fn main() {
     println!("cargo::rerun-if-changed=data");
     Command::new("glib-compile-resources")
         .arg(format!(
-            "--target={}/resources.gresource",
+            "--target={}/demoplayer.gresource",
             std::env::var("OUT_DIR").unwrap()
         ))
         .arg("demoplayer.gresource.xml")

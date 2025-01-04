@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/com/github/nocrex/tf2demoplayer">
-    <file preprocess="xml-stripblanks" compressed="true" alias="icons/scalable/apps/tf2demoplayer.svg">logo.svg</file>
+  <gresource prefix="/com/github/nocrex/tf2demoplayer/icons/scalable">
+    <file preprocess="xml-stripblanks" compressed="true" alias="apps/tf2demoplayer.svg">logo.svg</file>
+    <file preprocess="xml-stripblanks" compressed="true" alias="actions/document-edit-symbolic.svg">icons/edit-symbolic.svg</file>
   </gresource>
 </gresources>

@@ -117,7 +117,7 @@ impl AsyncComponent for DemoPlayerModel {
                     },
 
                     pack_end = &gtk::Button{
-                        set_icon_name: "edit-delete-symbolic",
+                        set_icon_name: "user-trash-symbolic",
                         set_tooltip_text: Some("Delete selected demo(s)"),
                         connect_clicked => DemoPlayerMsg::DeleteSelected,
                     },
