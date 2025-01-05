@@ -1,5 +1,4 @@
 use adw::prelude::*;
-use gtk::glib;
 use relm4::prelude::*;
 
 use crate::{rcon_manager::RconManager, settings::Settings};
@@ -22,6 +21,8 @@ pub enum PreferencesOut {
 }
 
 pub struct PreferencesModel {
+    parent: adw::Window,
+
     settings: Settings,
     connection_test_msg: String,
     connection_test_active: bool,
@@ -36,19 +37,16 @@ pub enum PreferencesCmd {
 
 #[relm4::component(pub)]
 impl Component for PreferencesModel {
-    type Init = Settings;
+    type Init = (Settings, adw::Window);
     type Input = PreferencesMsg;
     type Output = PreferencesOut;
     type CommandOutput = PreferencesCmd;
 
     view! {
-        adw::PreferencesWindow{
-            set_modal: true,
+        adw::PreferencesDialog{
             set_search_enabled: false,
-            set_hide_on_close: true,
-            connect_close_request[sender] => move |_| {
+            connect_closed[sender] => move |_| {
                 sender.input(PreferencesMsg::Close);
-                glib::signal::Propagation::Proceed
             },
 
             add = &adw::PreferencesPage {
@@ -127,12 +125,13 @@ impl Component for PreferencesModel {
     }
 
     fn init(
-        settings: Self::Init,
+        (settings, parent): Self::Init,
         root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         let model = PreferencesModel {
             settings,
+            parent,
             connection_test_msg: "".to_owned(),
             connection_test_active: false,
             tf_path_valid: true,
@@ -161,7 +160,7 @@ impl Component for PreferencesModel {
             }),
             PreferencesMsg::Show => {
                 self.connection_test_msg = "".to_owned();
-                root.present();
+                root.present(Some(&self.parent));
             }
             PreferencesMsg::Close => {
                 self.settings.save();

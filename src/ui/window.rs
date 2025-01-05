@@ -261,8 +261,7 @@ impl AsyncComponent for DemoPlayerModel {
             DemoPlayerMsg::OpenSettings => {
                 self.preferences_wnd = Some(
                     PreferencesModel::builder()
-                        .transient_for(&root)
-                        .launch(self.settings.borrow().clone())
+                        .launch((self.settings.borrow().clone(), root.clone()))
                         .forward(sender.input_sender(), |po| match po {
                             PreferencesOut::Save(s) => DemoPlayerMsg::SettingsClosed(s),
                         }),
