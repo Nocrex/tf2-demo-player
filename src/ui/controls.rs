@@ -55,7 +55,7 @@ impl AsyncComponent for ControlsModel {
     type Init = (adw::Window, Rc<RefCell<Settings>>);
     type Input = ControlsMsg;
     type Output = ControlsOut;
-    type CommandOutput = ();
+    type CommandOutput = std::sync::Arc<tf_demo_parser::MatchState>;
 
     view! {
         gtk::Grid {
@@ -331,9 +331,14 @@ impl AsyncComponent for ControlsModel {
                 }
             }
             ControlsMsg::InspectDemo => {
-                let _ = sender.output(ControlsOut::Inspect(
+                /*let _ = sender.output(ControlsOut::Inspect(
                     self.demo.as_ref().unwrap().filename.clone(),
-                ));
+                ));*/
+                let mut demo_clone = self.demo.clone().unwrap();
+                sender.oneshot_command(async move {
+                    let res = demo_clone.full_analysis().await;
+                    res.unwrap()
+                });
             }
             ControlsMsg::DiscardChanges => {
                 let _ = sender.output(ControlsOut::DiscardChanges);
@@ -346,5 +351,43 @@ impl AsyncComponent for ControlsModel {
             ControlsMsg::SetDirty(state) => self.dirty = state,
         }
         self.update_view(widgets, sender);
+    }
+
+    async fn update_cmd(
+        &mut self,
+        message: Self::CommandOutput,
+        sender: AsyncComponentSender<Self>,
+        root: &Self::Root,
+    ) {
+        let win = adw::Window::new();
+        let textview = gtk::TextView::new();
+        textview.buffer().set_text(&format!("{:#?}", message));
+
+        let pbox = gtk::ListBox::builder().show_separators(true).build();
+
+        for player in &message.users {
+            let item = gtk::ListBoxRow::builder()
+                .child(
+                    &gtk::Label::builder()
+                        .label(&format!("{}, {}", player.1.name, player.1.steam_id))
+                        .selectable(true)
+                        .build(),
+                )
+                .build();
+            item.set_halign(gtk::Align::Start);
+            pbox.append(&item);
+        }
+
+        let panes = gtk::Paned::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .end_child(&textview)
+            .start_child(&pbox)
+            .shrink_end_child(false)
+            .shrink_start_child(false)
+            .position(100)
+            .position_set(true)
+            .build();
+        win.set_content(Some(&gtk::ScrolledWindow::builder().child(&panes).build()));
+        win.present();
     }
 }

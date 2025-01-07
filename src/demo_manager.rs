@@ -8,7 +8,7 @@ use chrono::{Datelike, Timelike};
 use glob::glob;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::Metadata, time::SystemTime};
+use std::{collections::HashMap, fs::Metadata, sync::Arc, time::SystemTime};
 use tf_demo_parser::demo::header::Header;
 use trash;
 
@@ -36,7 +36,7 @@ pub struct Demo {
     pub events: Vec<Event>,
     pub notes: Option<String>,
     pub metadata: Option<Metadata>,
-    pub inspection: Option<crate::inspector::MatchState>,
+    pub inspection: Option<Arc<tf_demo_parser::MatchState>>,
 }
 
 impl Demo {
@@ -85,17 +85,14 @@ impl Demo {
 
     pub async fn full_analysis(
         &mut self,
-    ) -> Result<crate::inspector::MatchState, Box<dyn std::error::Error>> {
+    ) -> Result<Arc<tf_demo_parser::MatchState>, Box<dyn std::error::Error>> {
         let f = fs::read(&self.path).await?;
         let demo = tf_demo_parser::Demo::new(&f);
-        let parser = tf_demo_parser::DemoParser::new_with_analyser(
-            demo.get_stream(),
-            crate::inspector::Analyser::new(),
-        );
+        let parser = tf_demo_parser::DemoParser::new(demo.get_stream());
 
         let (_, state) = parser.parse()?;
-        self.inspection = Some(state.clone());
-        Ok(state)
+        self.inspection = Some(Arc::new(state));
+        Ok(self.inspection.as_ref().unwrap().clone())
     }
 
     pub async fn has_replay(&self, replays_folder: &Path) -> bool {
