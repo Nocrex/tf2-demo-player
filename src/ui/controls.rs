@@ -10,6 +10,7 @@ use crate::settings::Settings;
 use crate::util::sec_to_timestamp;
 use crate::util::ticks_to_sec;
 
+use super::inspection_window::InspectionModel;
 use super::ui_util;
 use super::window::RconAction;
 
@@ -48,6 +49,8 @@ pub struct ControlsModel {
 
     window: adw::Window,
     settings: Rc<RefCell<Settings>>,
+
+    inspection_wnd: Controller<InspectionModel>,
 }
 
 #[relm4::component(async pub)]
@@ -211,6 +214,7 @@ impl AsyncComponent for ControlsModel {
             playhead_time: 0.0,
             window: init.0,
             settings: init.1,
+            inspection_wnd: InspectionModel::builder().launch(()).detach(),
         };
 
         let widgets = view_output!();
@@ -334,11 +338,8 @@ impl AsyncComponent for ControlsModel {
                 /*let _ = sender.output(ControlsOut::Inspect(
                     self.demo.as_ref().unwrap().filename.clone(),
                 ));*/
-                let mut demo_clone = self.demo.clone().unwrap();
-                sender.oneshot_command(async move {
-                    let res = demo_clone.full_analysis().await;
-                    res.unwrap()
-                });
+                let demo_clone = self.demo.clone().unwrap();
+                self.inspection_wnd.emit(demo_clone);
             }
             ControlsMsg::DiscardChanges => {
                 let _ = sender.output(ControlsOut::DiscardChanges);
@@ -351,43 +352,5 @@ impl AsyncComponent for ControlsModel {
             ControlsMsg::SetDirty(state) => self.dirty = state,
         }
         self.update_view(widgets, sender);
-    }
-
-    async fn update_cmd(
-        &mut self,
-        message: Self::CommandOutput,
-        sender: AsyncComponentSender<Self>,
-        root: &Self::Root,
-    ) {
-        let win = adw::Window::new();
-        let textview = gtk::TextView::new();
-        textview.buffer().set_text(&format!("{:#?}", message));
-
-        let pbox = gtk::ListBox::builder().show_separators(true).build();
-
-        for player in &message.users {
-            let item = gtk::ListBoxRow::builder()
-                .child(
-                    &gtk::Label::builder()
-                        .label(&format!("{}, {}", player.1.name, player.1.steam_id))
-                        .selectable(true)
-                        .build(),
-                )
-                .build();
-            item.set_halign(gtk::Align::Start);
-            pbox.append(&item);
-        }
-
-        let panes = gtk::Paned::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .end_child(&textview)
-            .start_child(&pbox)
-            .shrink_end_child(false)
-            .shrink_start_child(false)
-            .position(100)
-            .position_set(true)
-            .build();
-        win.set_content(Some(&gtk::ScrolledWindow::builder().child(&panes).build()));
-        win.present();
     }
 }

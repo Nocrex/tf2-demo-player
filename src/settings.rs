@@ -2,6 +2,8 @@ use std::fs;
 
 use serde::{Deserialize, Serialize};
 
+use crate::util;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Settings {
@@ -18,9 +20,12 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
+        let tf_folder = util::steam::tf_folder().map(|p| p.join("tf"));
         Self {
-            demo_folder_path: Default::default(),
-            tf_folder_path: Default::default(),
+            demo_folder_path: tf_folder.as_ref().map_or("".to_owned(), |p| {
+                p.join("demos").to_str().unwrap().to_owned()
+            }),
+            tf_folder_path: tf_folder.map_or("".to_owned(), |p| p.to_str().unwrap().to_owned()),
             rcon_pw: Default::default(),
             event_skip_predelay: 30.0,
             doubleclick_play: false,

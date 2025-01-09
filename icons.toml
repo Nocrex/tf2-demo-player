@@ -5,4 +5,7 @@ icons = [
     "cross-small-circle-outline",
     "search-folder",
     "list-compact",
+    "people",
+    "chat-bubbles-text",
+    "symbolic-link",
 ]
