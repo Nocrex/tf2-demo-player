@@ -9,22 +9,25 @@ use tf_demo_parser::{
     MatchState,
 };
 
+use super::ui_util;
+
 pub struct InspectionModel {
     insp: Option<Arc<MatchState>>,
     tps: f32,
 }
 
-#[relm4::component(pub)]
-impl Component for InspectionModel {
+#[relm4::component(async pub)]
+impl AsyncComponent for InspectionModel {
     type Init = ();
     type Input = Demo;
     type Output = ();
-    type CommandOutput = Option<Arc<MatchState>>;
+    type CommandOutput = Result<Arc<MatchState>, String>;
 
     view! {
         adw::Window{
             set_hide_on_close: true,
             set_title: Some("Demo Inspection Window"),
+            set_height_request: 500,
             #[wrap(Some)]
             set_content = &adw::ToolbarView{
                 add_top_bar = &adw::HeaderBar{
@@ -99,9 +102,9 @@ impl Component for InspectionModel {
 
                                     let kind =  match chat.kind{
                                         ChatMessageKind::ChatAll => "",
-                                        ChatMessageKind::ChatTeam => "(team) ",
+                                        ChatMessageKind::ChatTeam => "(Team) ",
                                         ChatMessageKind::ChatAllDead => "*DEAD* ",
-                                        ChatMessageKind::ChatTeamDead => "(team) *DEAD* ",
+                                        ChatMessageKind::ChatTeamDead => "(Team) *DEAD* ",
                                         ChatMessageKind::ChatAllSpec => "*SPEC* ",
                                         ChatMessageKind::NameChange => "[Name Change] ",
                                         ChatMessageKind::Empty => "",
@@ -142,11 +145,11 @@ impl Component for InspectionModel {
         }
     }
 
-    fn init(
+    async fn init(
         _init: Self::Init,
         root: Self::Root,
-        _sender: ComponentSender<Self>,
-    ) -> ComponentParts<Self> {
+        _sender: AsyncComponentSender<Self>,
+    ) -> AsyncComponentParts<Self> {
         let model = InspectionModel {
             insp: None,
             tps: Demo::TICKRATE,
@@ -154,28 +157,36 @@ impl Component for InspectionModel {
 
         let widgets = view_output!();
 
-        ComponentParts { model, widgets }
+        AsyncComponentParts { model, widgets }
     }
 
-    fn update(
+    async fn update(
         &mut self,
         message: Self::Input,
-        sender: ComponentSender<Self>,
+        sender: AsyncComponentSender<Self>,
         root: &Self::Root,
     ) -> () {
         let mut message = message;
         self.tps = message.tps();
         self.insp = None;
-        sender.oneshot_command(async move { message.full_analysis().await.ok() });
+        sender.oneshot_command(async move {
+            message
+                .full_analysis()
+                .await
+                .map_err(|e| format!("{:?}", e))
+        });
         root.present();
     }
 
-    fn update_cmd(
+    async fn update_cmd(
         &mut self,
         message: Self::CommandOutput,
-        _sender: ComponentSender<Self>,
-        _root: &Self::Root,
+        _sender: AsyncComponentSender<Self>,
+        root: &Self::Root,
     ) {
-        self.insp = message;
+        if let Err(e) = &message {
+            ui_util::notice_dialog(&root, "An error occured while parsing the demo", e).await;
+        }
+        self.insp = message.ok();
     }
 }
