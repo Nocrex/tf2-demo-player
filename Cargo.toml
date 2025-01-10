@@ -26,6 +26,8 @@ parse-display = "0.10.0"
 relm4-icons = { version = "0.9.0", features = ["icon-development-kit"] }
 regex = "1.11.1"
 regex-macro = "0.2.0"
+itertools = "0.14.0"
+lazy_static = "1.5.0"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52.0"

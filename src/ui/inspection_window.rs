@@ -1,8 +1,9 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::demo_manager::Demo;
 use adw::prelude::*;
 use gtk::glib::markup_escape_text;
+use itertools::Itertools;
 use relm4::prelude::*;
 use tf_demo_parser::{
     demo::{message::usermessage::ChatMessageKind, parser::analyser::Team},
@@ -16,11 +17,20 @@ pub struct InspectionModel {
     tps: f32,
 }
 
+#[derive(Debug)]
+pub enum InspectionOut {
+    GotoTick(u32),
+}
+
+lazy_static::lazy_static! {
+    static ref TEAM_ORDERING: HashMap<Team, usize> = HashMap::from_iter(vec![Team::Blue, Team::Red, Team::Spectator, Team::Other].iter().cloned().enumerate().map(|i|(i.1, i.0)));
+}
+
 #[relm4::component(async pub)]
 impl AsyncComponent for InspectionModel {
     type Init = ();
     type Input = Demo;
-    type Output = ();
+    type Output = InspectionOut;
     type CommandOutput = Result<Arc<MatchState>, String>;
 
     view! {
@@ -54,7 +64,7 @@ impl AsyncComponent for InspectionModel {
                                 .build();
 
                             model.insp.as_ref().inspect(|ms|{
-                                for user in ms.users.values(){
+                                for user in ms.users.values().sorted_by(|a,b|TEAM_ORDERING[&a.team].cmp(&TEAM_ORDERING[&b.team])){
                                     let row = adw::ActionRow::new();
 
                                     let sid64 = crate::util::steamid_32_to_64(&user.steam_id).unwrap_or_else(||{user.steam_id.clone()});
@@ -96,9 +106,11 @@ impl AsyncComponent for InspectionModel {
                                 .show_separators(true)
                                 .build();
 
+
                             model.insp.as_ref().inspect(|ms|{
                                 for chat in &ms.chat{
                                     let row = adw::ActionRow::new();
+                                    row.set_activatable(true);
 
                                     let kind =  match chat.kind{
                                         ChatMessageKind::ChatAll => "",
@@ -115,6 +127,11 @@ impl AsyncComponent for InspectionModel {
 
                                     row.add_suffix(&gtk::Label::new(Some(&format!("{} ({})", crate::util::ticks_to_timestamp(chat.tick.into(), model.tps), chat.tick))));
 
+                                    let row_sender = sender.clone();
+                                    let tick: u32 = chat.tick.into();
+                                    row.connect_activated(move |_|{
+                                        let _ = row_sender.output(InspectionOut::GotoTick(tick));
+                                    });
                                     g_box.append(&row);
                                 }
                             });
@@ -148,7 +165,7 @@ impl AsyncComponent for InspectionModel {
     async fn init(
         _init: Self::Init,
         root: Self::Root,
-        _sender: AsyncComponentSender<Self>,
+        sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
         let model = InspectionModel {
             insp: None,

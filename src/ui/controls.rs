@@ -11,6 +11,7 @@ use crate::util::sec_to_timestamp;
 use crate::util::ticks_to_sec;
 
 use super::inspection_window::InspectionModel;
+use super::inspection_window::InspectionOut;
 use super::ui_util;
 use super::window::RconAction;
 
@@ -214,7 +215,12 @@ impl AsyncComponent for ControlsModel {
             playhead_time: 0.0,
             window: init.0,
             settings: init.1,
-            inspection_wnd: InspectionModel::builder().launch(()).detach(),
+            inspection_wnd: InspectionModel::builder().launch(()).forward(
+                sender.input_sender(),
+                |msg| match msg {
+                    InspectionOut::GotoTick(tick) => ControlsMsg::PlayheadMoved(tick.into()),
+                },
+            ),
         };
 
         let widgets = view_output!();
