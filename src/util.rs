@@ -74,9 +74,9 @@ pub mod steam {
     fn steam_folder() -> Option<std::path::PathBuf> {
         let hklm = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE);
         let steam = hklm
-            .open_subkey("SOFTWARE\\Valve\\Steam")
+            .open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam")
             .ok()
-            .or_else(|| hklm.open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam").ok())?;
+            .or_else(|| hklm.open_subkey("SOFTWARE\\Valve\\Steam").ok())?;
         steam
             .get_value("InstallPath")
             .map(|p: String| std::path::PathBuf::from(p))
