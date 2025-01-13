@@ -251,7 +251,7 @@ impl AsyncComponent for DemoPlayerModel {
         sender: AsyncComponentSender<Self>,
         root: &Self::Root,
     ) {
-        log::debug!("{:?}", message);
+        log::debug!("{message:?}");
         match message {
             DemoPlayerMsg::DeleteUnfinished => {
                 self.demo_manager.delete_empty_demos().await;
@@ -294,7 +294,6 @@ impl AsyncComponent for DemoPlayerModel {
                 self.settings.borrow().save();
                 self.demo_details.emit(InfoPaneMsg::Display(None, false));
                 sender.input(DemoPlayerMsg::DemosChanged(scroll_up));
-                // TODO: update recent folders menu
             }
             DemoPlayerMsg::ReloadFolder => {
                 sender.input(DemoPlayerMsg::OpenFolder(
