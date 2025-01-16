@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashSet, hash::RandomState, rc::Rc};
 
 use glib::Object;
 use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, AlertDialog, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NoSelection, NumericSorter, SortListModel};
-use adw::Application;
+use adw::{prelude::*, Application};
 
 use crate::{demo_manager::{Demo, DemoManager}, rcon_manager::RconManager, settings::Settings, util::{sec_to_timestamp, ticks_to_sec}};
 
@@ -207,11 +207,15 @@ impl Window {
     }
 
     async fn delete_dialog(&self) -> bool {
-        let ad = AlertDialog::builder().buttons(vec!["Delete", "Cancel"]).default_button(1).cancel_button(1).detail("Deleting selected demos!").message("Are you sure?").modal(true).build();
-        match ad.choose_future(Some(self)).await {
-            Ok(choice) => match choice {0 => return true, _ => return false},
-            Err(e) => {log::warn!("Dialog error? {}", e); return false;}
-        };
+        let ad = adw::AlertDialog::builder().default_response("cancel").close_response("cancel").body("Deleting selected demos!").heading("Are you sure?").build();
+        ad.add_response("cancel", "Cancel");
+        ad.add_response("delete", "Delete");
+        ad.set_response_appearance("delete", adw::ResponseAppearance::Destructive);
+        let res = ad.choose_future(self).await;
+        match res.as_str() {
+            "delete" => true,
+            _ => false
+        }
     }
 
     fn get_selected_demo(&self) -> Option<Demo>{

@@ -21,7 +21,7 @@ size_format = "1.0.2"
 trash = "4.0.0"
 async-std = { version = "1.12.0", features = ["attributes"] }
 gtk-macros = "0.3.0"
-adw = { version = "0.6.0", package = "libadwaita", features = ["v1_4"] }
+adw = { version = "0.6.0", package = "libadwaita", features = ["v1_4", "v1_5"] }
 
 [build-dependencies]
 glib-build-tools = "0.19.0"
