@@ -39,7 +39,8 @@ pub mod steam {
         let path_regex = regex_macro::regex!("\"path\"\\s+\"(.+)\"");
 
         for folder in path_regex.captures_iter(&libraries) {
-            let library_folder = std::path::Path::new(folder.get(1).unwrap().as_str());
+            let library_folder =
+                std::path::PathBuf::from(folder.get(1).unwrap().as_str().replace("\\\\", "\\"));
             if library_folder
                 .join("steamapps")
                 .join("appmanifest_440.acf")
@@ -72,7 +73,13 @@ pub mod steam {
     #[cfg(target_family = "windows")]
     fn steam_folder() -> Option<std::path::PathBuf> {
         let hklm = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE);
-        let steam = hklm.open_subkey("\\SOFTWARE\\Valve\\Steam").ok()?;
-        steam.get_value("InstallPath").ok()
+        let steam = hklm
+            .open_subkey("SOFTWARE\\Valve\\Steam")
+            .ok()
+            .or_else(|| hklm.open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam").ok())?;
+        steam
+            .get_value("InstallPath")
+            .map(|p: String| std::path::PathBuf::from(p))
+            .ok()
     }
 }
