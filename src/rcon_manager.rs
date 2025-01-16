@@ -69,7 +69,7 @@ impl RconManager {
     }
 
     pub async fn send_command(&mut self, command: Command<'_>) -> Result<String, Error> {
-        log::debug!("Sending command: {:?}", command);
+        log::debug!("Sending command: {}", command.get_command());
         if !self.is_connected() {
             if let Err(e) = self.connect().await{
                 return Err(e);
