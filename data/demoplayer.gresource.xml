@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/com/github/nocrex/tf2demoplayer">
+    <file preprocess="xml-stripblanks" compressed="true" alias="icons/scalable/apps/tf2demoplayer.svg">logo.svg</file>
+  </gresource>
+</gresources>

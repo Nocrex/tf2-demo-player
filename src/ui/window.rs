@@ -86,6 +86,7 @@ impl AsyncComponent for DemoPlayerModel {
         adw::Window {
             set_title: Some("Demo Player"),
             set_size_request: (1000, 850),
+            set_icon_name: Some("tf2demoplayer"),
 
             adw::ToolbarView {
                 add_top_bar = &adw::HeaderBar{
