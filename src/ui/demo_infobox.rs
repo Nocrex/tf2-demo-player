@@ -1,7 +1,7 @@
 use adw::prelude::*;
 use relm4::prelude::*;
 
-use crate::{demo_manager::Demo, icon_names};
+use crate::demo_manager::Demo;
 
 #[derive(Debug)]
 pub enum DemoInfoboxOut {
@@ -53,7 +53,7 @@ impl Component for DemoInfoboxModel {
                     set_editable: false,
                     set_secondary_icon_sensitive: true,
                     set_secondary_icon_activatable: true,
-                    set_secondary_icon_name: Some(icon_names::SEARCH_FOLDER),
+                    set_secondary_icon_name: Some("folder-open-symbolic"),
                     set_secondary_icon_tooltip_text: Some("Reveal in files"),
                     connect_icon_press[sender] => move |_,_|{
                         sender.input(DemoInfoboxMsg::OpenFolder);

@@ -3,7 +3,6 @@ use gtk::gio;
 use relm4::prelude::*;
 
 use crate::demo_manager::{Demo, Event};
-use crate::icon_names;
 use crate::ui::event_object::EventObject;
 
 #[derive(Debug)]
@@ -68,7 +67,7 @@ impl SimpleComponent for EventListModel {
                             let name_label = gtk::Label::builder().halign(gtk::Align::Start).build();
                             list_item.property_expression("item").chain_property::<EventObject>("name").bind(&name_label, "label", gtk::Widget::NONE);
 
-                            let seek_button = gtk::Button::builder().icon_name(icon_names::PIN_LOCATION).tooltip_text("Jump to this event").vexpand(false).valign(gtk::Align::Center).build();
+                            let seek_button = gtk::Button::builder().icon_name("find-location-symbolic").tooltip_text("Jump to this event").vexpand(false).valign(gtk::Align::Center).build();
                             let button_list_item = list_item.clone();
                             let button_sender = sender.clone();
                             seek_button.connect_clicked(move |_|{
@@ -99,7 +98,7 @@ impl SimpleComponent for EventListModel {
 
             add_bottom_bar = &gtk::ActionBar{
                 pack_start = &gtk::Button{
-                    set_icon_name: icon_names::PLUS,
+                    set_icon_name: "list-add-symbolic",
                     set_tooltip_text: Some("Add new event"),
                     #[watch]
                     set_sensitive: model.demo.is_some(),
@@ -109,7 +108,7 @@ impl SimpleComponent for EventListModel {
                 },
 
                 pack_start = &gtk::Button{
-                    set_icon_name: icon_names::MINUS,
+                    set_icon_name: "list-remove-symbolic",
                     set_tooltip_text: Some("Remove selected event"),
                     #[watch]
                     set_sensitive: model.selection_model.selected_item().is_some(),
@@ -117,7 +116,7 @@ impl SimpleComponent for EventListModel {
                 },
 
                 pack_start = &gtk::Button{
-                    set_icon_name: icon_names::EDIT,
+                    set_icon_name: "document-edit-symbolic",
                     set_tooltip_text: Some("Edit selected event"),
                     #[watch]
                     set_sensitive: model.selection_model.selected_item().is_some(),
