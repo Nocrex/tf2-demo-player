@@ -1,0 +1,8 @@
+icons = [
+    "skip-backwards-30",
+    "skip-forward-30",
+    "video-clip",
+    "cross-small-circle-outline",
+    "search-folder",
+    "list-compact",
+]

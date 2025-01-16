@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use relm4::prelude::*;
+use relm4_icons::icon_names;
 
 use crate::demo_manager::Demo;
 use crate::settings::Settings;
@@ -147,13 +148,13 @@ impl AsyncComponent for ControlsModel {
                     },
 
                     gtk::Button{
-                        set_icon_name: "media-seek-backward-symbolic",
+                        set_icon_name: icon_names::SKIP_BACKWARDS_30,
                         set_tooltip_text: Some("-30s"),
                         connect_clicked => ControlsMsg::SeekBackward,
                     },
 
                     gtk::Button{
-                        set_icon_name: "media-seek-forward-symbolic",
+                        set_icon_name: icon_names::SKIP_FORWARD_30,
                         set_tooltip_text: Some("+30s"),
                         connect_clicked => ControlsMsg::SeekForward,
                     },
@@ -163,13 +164,13 @@ impl AsyncComponent for ControlsModel {
                     },
 
                     gtk::Button{
-                        set_icon_name: "multimedia-video-player-symbolic",
+                        set_icon_name: icon_names::VIDEO_CLIP,
                         set_tooltip_text: Some("Convert to replay"),
                         connect_clicked => ControlsMsg::ConvertReplay,
                     },
 
                     gtk::Button{
-                        set_icon_name: "view-list-symbolic",
+                        set_icon_name: icon_names::LIST_COMPACT,
                         set_tooltip_text: Some("Inspect demo"),
                         connect_clicked => ControlsMsg::InspectDemo,
                     }
@@ -183,7 +184,7 @@ impl AsyncComponent for ControlsModel {
                     set_sensitive: model.dirty,
 
                     gtk::Button{
-                        set_icon_name: "edit-clear-all-symbolic",
+                        set_icon_name: icon_names::CROSS_SMALL_CIRCLE_OUTLINE,
                         set_tooltip_text: Some("Discard changes"),
                         connect_clicked => ControlsMsg::DiscardChanges,
                     },
