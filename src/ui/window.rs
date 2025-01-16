@@ -90,9 +90,12 @@ impl AsyncComponent for DemoPlayerModel {
 
             adw::ToolbarView {
                 add_top_bar = &adw::HeaderBar{
-                    set_title_widget: Some(&gtk::Label::new(
-                        Some("Demo Player")
-                    )),
+                    #[wrap(Some)]
+                    set_title_widget = &adw::WindowTitle{
+                        set_title: "Demo Player",
+                        #[watch]
+                        set_subtitle: &model.settings.borrow().demo_folder_path,
+                    },
 
                     pack_start = &adw::SplitButton{
                         set_icon_name: "folder-symbolic",
