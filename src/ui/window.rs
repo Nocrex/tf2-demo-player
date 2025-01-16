@@ -24,7 +24,7 @@ mod imp {
     use std::rc::Rc;
 
     use glib::subclass::InitializingObject;
-    use gtk::{gio, Box, Button, ColumnView, Entry, Label, ListView, MultiSelection, Scale, TextView};
+    use gtk::{gio, Box, Button, ColumnView, Entry, Label, ListView, MultiSelection, Paned, Scale, TextView};
     use gtk::subclass::prelude::*;
     use gtk::{glib, CompositeTemplate};
 
@@ -75,7 +75,7 @@ mod imp {
         pub detail_edit: TemplateChild<Box>,
 
         #[template_child]
-        pub detail_box: TemplateChild<Box>,
+        pub detail_box: TemplateChild<Paned>,
 
         #[template_child]
         pub name_entry: TemplateChild<Entry>,
@@ -376,13 +376,13 @@ impl Window {
         factory.connect_setup(clone!(@weak self as wnd => move |_,li|{
             let list_item = li.downcast_ref::<ListItem>().unwrap();
 
-            let name_label = Label::builder().halign(gtk::Align::Start).margin_start(20).build();
+            let name_label = Label::builder().halign(gtk::Align::Start).margin_start(20).margin_end(20).build();
             list_item.property_expression("item").chain_property::<EventObject>("name").bind(&name_label, "label", Widget::NONE);
 
             let type_label = Label::builder().halign(gtk::Align::Center).justify(gtk::Justification::Center).build();
             list_item.property_expression("item").chain_property::<EventObject>("bookmark-type").bind(&type_label, "label", Widget::NONE);
             
-            let time_label = Label::builder().halign(gtk::Align::End).justify(gtk::Justification::Right).margin_end(20).build();
+            let time_label = Label::builder().halign(gtk::Align::End).justify(gtk::Justification::Right).margin_end(20).margin_start(20).build();
             list_item.property_expression("item").chain_property::<EventObject>("tick").chain_closure_with_callback(move |v|{
                 let tick: u32 = v[1].get().unwrap();
                 let secs = crate::util::ticks_to_sec(tick, wnd.get_selected_demo().unwrap().tps().unwrap_or(Demo::TICKRATE));

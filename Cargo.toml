@@ -19,6 +19,7 @@ gtk = { version = "0.8.0", package = "gtk4", features = ["v4_12"] }
 opener = { version = "0.6.1", features = ["reveal"] }
 chrono = "0.4.34"
 size_format = "1.0.2"
+trash = "4.0.0"
 
 [build-dependencies]
 glib-build-tools = "0.19.0"
