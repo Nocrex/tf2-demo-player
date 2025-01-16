@@ -240,6 +240,19 @@ impl Window {
         ad.choose_future(self).await;
     }
 
+    async fn entry_dialog(&self, title: &str, message: &str, default_text: &str) -> Option<String> {
+        let entry = gtk::Entry::new();
+        entry.set_text(default_text);
+        let ad = adw::AlertDialog::builder().default_response("ok").close_response("ok").extra_child(&entry).body(message).heading(title).build();
+        ad.add_response("ok", "OK");
+        ad.add_response("cancel", "Cancel");
+        entry.grab_focus();
+        match ad.choose_future(self).await.as_str(){
+            "ok" => Some(entry.text().as_str().to_owned()),
+            _ => None
+        }
+    }
+
     fn get_selected_demo(&self) -> Option<Demo>{
         let selected = self.selection().selection();
         if selected.is_empty() {
@@ -436,10 +449,12 @@ impl Window {
                     wnd.notice_dialog("Demo already converted", "").await;
                     return;
                 }
-                match wnd.demo_manager().borrow().convert_to_replay(&replay_folder, &mut demo).await {
-                    Ok(_) => wnd.notice_dialog("Replay created successfully", "").await,
-                    Err(e) => wnd.notice_dialog("Failed to create replay", &e.to_string()).await,
-                };
+                if let Some(title) = wnd.entry_dialog("Replay title", "Title to save the replay under", &demo.filename).await{
+                    match wnd.demo_manager().borrow().convert_to_replay(&replay_folder, &mut demo, &title).await {
+                        Ok(_) => wnd.notice_dialog("Replay created successfully", "").await,
+                        Err(e) => wnd.notice_dialog("Failed to create replay", &e.to_string()).await,
+                    };
+                }
             }));
         }));
 

@@ -1,5 +1,6 @@
+use chrono::{Datelike, Timelike};
 use tf_demo_parser::demo::header::Header;
-use std::{collections::HashMap, fs::Metadata};
+use std::{collections::HashMap, fs::Metadata, time::SystemTime};
 use bitbuffer::BitRead;
 use glob::glob;
 use serde::{Serialize, Deserialize};
@@ -186,7 +187,7 @@ impl DemoManager {
         }
     }
 
-    pub async fn convert_to_replay(&self, replays_folder: &Path, demo: &mut Demo) -> io::Result<()> {
+    pub async fn convert_to_replay(&self, replays_folder: &Path, demo: &mut Demo, title: &str) -> io::Result<()> {
         create_replay_index_file(replays_folder).await?;
 
         let replay_demo_path = replays_folder.join(&demo.filename);
@@ -197,21 +198,36 @@ impl DemoManager {
             replay_handle = rand::thread_rng().gen();
         }
 
+        let create_date: chrono::DateTime<chrono::Local> = chrono::DateTime::from(
+            demo.metadata.as_ref()
+            .map(|m|m.created().ok())
+            .map_or(None, |d|d)
+            .unwrap_or(SystemTime::now())
+        );
+
+        let kv_date = (create_date.day() - 1) | ((create_date.month() - 1) << 5) | ((create_date.year() as u32 - 2009) << 9);
+        let kv_time = create_date.hour() | (create_date.minute() << 5) | (create_date.second() << 11);
+
         demo.read_data().await;
         let dmx_file_content = format!(
 "replay_{replay_handle}
 {{
 \t\"handle\"\t\"{replay_handle}\"
-\t\"map\"\t\"{1}\"
+\t\"map\"\t\"{0}\"
 \t\"complete\"\t\"1\"
-\t\"title\"\t\"{0}\"
-\t\"recon_filename\"\t\"{0}\"
+\t\"title\"\t\"{title}\"
+\t\"recon_filename\"\t\"{1}\"
 \t\"spawn_tick\"\t\"-1\"
 \t\"death_tick\"\t\"-1\"
 \t\"status\"\t\"3\"
 \t\"length\"\t\"{2}\"
+\t\"record_time\"
+\t{{
+\t\t\"date\"\t\"{kv_date}\"
+\t\t\"time\"\t\"{kv_time}\"
+\t}}
 }}
-" , demo.filename, demo.header.as_ref().unwrap().map, demo.header.as_ref().unwrap().duration);
+" , demo.header.as_ref().unwrap().map, demo.filename , demo.header.as_ref().unwrap().duration);
         
         fs::write(replays_folder.join(format!("replay_{replay_handle}.dmx")), dmx_file_content).await?;
         Ok(())
