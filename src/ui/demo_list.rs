@@ -5,9 +5,6 @@ use std::hash::RandomState;
 use adw::prelude::*;
 use chrono::TimeZone;
 use gtk::gio;
-use gtk::glib;
-use gtk::prelude::*;
-use relm4::factory::Position;
 use relm4::prelude::*;
 
 use crate::demo_manager::Demo;

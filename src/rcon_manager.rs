@@ -3,6 +3,7 @@ use rcon::{AsyncStdStream, Connection, Error};
 use crate::demo_manager::Demo;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum Command<'a> {
     PlayDemo(&'a Demo),
     SkipToTick(u32, bool),

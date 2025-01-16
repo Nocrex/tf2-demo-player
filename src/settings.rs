@@ -51,4 +51,11 @@ impl Settings {
             log::warn!("Couldn't save settings file, {}", e);
         }
     }
+
+    pub fn folder_opened(&mut self, path: &str) {
+        self.demo_folder_path = path.to_owned();
+        self.recent_folders.retain(|p| *p != path);
+        self.recent_folders.insert(0, path.to_owned());
+        self.recent_folders.truncate(5);
+    }
 }

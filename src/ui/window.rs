@@ -1,4 +1,8 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use adw::prelude::*;
+use gtk::gio;
 use relm4::actions::RelmAction;
 use relm4::actions::RelmActionGroup;
 use relm4::prelude::*;
@@ -7,6 +11,7 @@ use crate::demo_manager::Event;
 use crate::ui::demo_list::*;
 use crate::ui::info_pane::InfoPaneMsg;
 use crate::ui::settings_window::*;
+use crate::ui::ui_util;
 use crate::{
     demo_manager::{Demo, DemoManager},
     rcon_manager::RconManager,
@@ -14,12 +19,13 @@ use crate::{
 };
 
 use super::info_pane::InfoPaneModel;
+use super::info_pane::InfoPaneOut;
 
 #[derive(Debug)]
 pub enum RconAction {
     Play(String),
     GotoTick(u32),
-    GotoEvent(Demo, usize),
+    GotoEvent(Event),
     Stop,
 }
 
@@ -40,7 +46,8 @@ pub enum DemoPlayerMsg {
 
     Rcon(RconAction),
     PlayDemoDblclck(String),
-    DemoSelected(Option<String>),
+    DemoSelected(Option<String>, bool),
+    DemoSave(Demo),
 }
 
 relm4::new_action_group!(AppMenu, "app-menu");
@@ -48,12 +55,16 @@ relm4::new_stateless_action!(OpenSettingsAction, AppMenu, "open-settings");
 relm4::new_stateless_action!(DeleteUnfinishedAction, AppMenu, "clean-unfinished");
 relm4::new_stateless_action!(DeleteUnmarkedAction, AppMenu, "clean-unmarked");
 
+relm4::new_stateful_action!(OpenFolderAction, AppMenu, "open-folder", String, ());
+
 pub struct DemoPlayerModel {
     demo_manager: DemoManager,
     rcon_manager: RconManager,
-    settings: Settings,
+    settings: Rc<RefCell<Settings>>,
 
-    //preferences_wnd: Controller<PreferencesModel>,
+    selected_demo: Option<Demo>,
+
+    preferences_wnd: Option<Controller<PreferencesModel>>,
     demo_list: Controller<DemoListModel>,
     demo_details: Controller<InfoPaneModel>,
 }
@@ -80,7 +91,16 @@ impl AsyncComponent for DemoPlayerModel {
                     pack_start = &adw::SplitButton{
                         set_icon_name: "folder-symbolic",
                         set_tooltip_text: Some("Select demo folder"),
+                        set_dropdown_tooltip: "Recent folders",
                         connect_clicked => DemoPlayerMsg::SelectFolder,
+                        #[watch]
+                        set_menu_model: Some(&{
+                            let m_model = gio::Menu::new();
+                            for folder in &model.settings.borrow().recent_folders {
+                                m_model.append(Some(folder), Some(&format!("app-menu.open-folder('{folder}')")));
+                            }
+                            m_model
+                        }),
                     },
 
                     pack_end: app_menu_button = &gtk::MenuButton{
@@ -130,33 +150,30 @@ impl AsyncComponent for DemoPlayerModel {
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
+        let settings = Rc::new(RefCell::new(Settings::load()));
+
         let demo_list = DemoListModel::builder()
             .launch(())
             .forward(sender.input_sender(), |msg| match msg {
-                DemoListOut::SelectionChanged(demo) => DemoPlayerMsg::DemoSelected(demo),
+                DemoListOut::SelectionChanged(demo) => DemoPlayerMsg::DemoSelected(demo, false),
                 DemoListOut::DemoActivated(name) => DemoPlayerMsg::PlayDemoDblclck(name),
             });
 
         let demo_details = InfoPaneModel::builder()
-            .launch(())
-            .forward(sender.input_sender(), |msg| todo!());
-
-        let settings = Settings::load();
+            .launch((root.clone(), settings.clone()))
+            .forward(sender.input_sender(), |msg| match msg {
+                InfoPaneOut::Rcon(act) => DemoPlayerMsg::Rcon(act),
+                InfoPaneOut::Save(demo) => DemoPlayerMsg::DemoSave(demo),
+            });
 
         let model = Self {
             demo_manager: DemoManager::new(),
-            rcon_manager: RconManager::new(settings.rcon_pw.to_owned()),
+            rcon_manager: RconManager::new(settings.clone().borrow().rcon_pw.to_owned()),
             settings: settings,
-            /*preferences_wnd: PreferencesModel::builder()
-            .transient_for(&root)
-            .launch(settings)
-            .forward(sender.input_sender(), |po|{
-                match po {
-                    PreferencesOut::Save(s) => DemoPlayerMsg::SettingsClosed(s)
-                }
-            }),*/
+            preferences_wnd: None,
             demo_list,
             demo_details,
+            selected_demo: None,
         };
 
         let widgets = view_output!();
@@ -185,6 +202,13 @@ impl AsyncComponent for DemoPlayerModel {
                 });
             group.add_action(delete_unmarked_action);
 
+            let open_folder_sender = sender.clone();
+            let open_folder_action: RelmAction<OpenFolderAction> =
+                RelmAction::new_with_target_value(move |_, val| {
+                    open_folder_sender.input(DemoPlayerMsg::OpenFolder(val, true));
+                });
+            group.add_action(open_folder_action);
+
             let actions = group.into_action_group();
             widgets
                 .main_window
@@ -192,7 +216,7 @@ impl AsyncComponent for DemoPlayerModel {
         }
 
         sender.input(DemoPlayerMsg::OpenFolder(
-            model.settings.demo_folder_path.to_owned(),
+            model.settings.borrow().demo_folder_path.to_owned(),
             true,
         ));
 
@@ -216,11 +240,23 @@ impl AsyncComponent for DemoPlayerModel {
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
             DemoPlayerMsg::OpenSettings => {
-                //self.preferences_wnd.emit(PreferencesMsg::Show);
+                self.preferences_wnd = Some(
+                    PreferencesModel::builder()
+                        .transient_for(&root)
+                        .launch(self.settings.borrow().clone())
+                        .forward(sender.input_sender(), |po| match po {
+                            PreferencesOut::Save(s) => DemoPlayerMsg::SettingsClosed(s),
+                        }),
+                );
+                self.preferences_wnd
+                    .as_ref()
+                    .unwrap()
+                    .emit(PreferencesMsg::Show);
             }
             DemoPlayerMsg::SettingsClosed(settings) => {
-                self.settings = settings;
-                self.rcon_manager = RconManager::new(self.settings.rcon_pw.clone());
+                self.settings.replace(settings);
+                self.rcon_manager = RconManager::new(self.settings.borrow().rcon_pw.clone());
+                self.preferences_wnd.take();
             }
             DemoPlayerMsg::SelectFolder => {
                 let dia = gtk::FileDialog::builder().build();
@@ -233,44 +269,57 @@ impl AsyncComponent for DemoPlayerModel {
             DemoPlayerMsg::OpenFolder(path, scroll_up) => {
                 self.demo_manager.load_demos(&path).await;
 
-                self.settings.demo_folder_path = path.clone();
-                self.settings.recent_folders.retain(|p| *p != path);
-                self.settings.recent_folders.insert(0, path);
-                self.settings.recent_folders.truncate(5);
-                self.demo_details.emit(InfoPaneMsg::Display(None));
+                self.settings.borrow_mut().folder_opened(&path);
+                self.settings.borrow().save();
+                self.demo_details.emit(InfoPaneMsg::Display(None, false));
                 sender.input(DemoPlayerMsg::DemosChanged(scroll_up));
                 // TODO: update recent folders menu
             }
             DemoPlayerMsg::ReloadFolder => {
                 sender.input(DemoPlayerMsg::OpenFolder(
-                    self.settings.demo_folder_path.clone(),
+                    self.settings.borrow().demo_folder_path.clone(),
                     false,
                 ));
             }
-            DemoPlayerMsg::DemoSelected(opt_name) => {
+            DemoPlayerMsg::DemoSelected(opt_name, reselected) => {
                 let mut demo = None::<Demo>;
                 if let Some(name) = opt_name {
                     demo = self.demo_manager.get_demo(&name).cloned();
                 }
-                self.demo_details.emit(InfoPaneMsg::Display(demo));
+                self.demo_details
+                    .emit(InfoPaneMsg::Display(demo.clone(), reselected));
+                self.selected_demo = demo;
             }
             DemoPlayerMsg::Rcon(act) => {
+                // TODO: show status in UI
                 match act {
                     RconAction::Play(name) => {
                         let demo = self.demo_manager.get_demo(&name).unwrap();
-                        let _ = self.rcon_manager.play_demo(demo).await; // TODO: HANDLE AND OUTPUT
+                        let _ = self.rcon_manager.play_demo(demo).await;
                     }
                     RconAction::GotoTick(tick) => {
                         let _ = self.rcon_manager.skip_to_tick(tick, true).await;
                     }
-                    RconAction::GotoEvent(dem, ev) => {
-                        let ev = &dem.events[ev];
-                        let _ = self.rcon_manager.skip_to_tick(
-                            (ev.tick
-                                - (self.settings.event_skip_predelay * dem.tps()).round() as u32)
-                                .clamp(0, dem.header.map_or(0, |h| h.ticks)),
-                            true,
-                        );
+                    RconAction::GotoEvent(ev) => {
+                        let _ = self
+                            .rcon_manager
+                            .skip_to_tick(
+                                (ev.tick
+                                    - (self.settings.borrow().event_skip_predelay
+                                        * self.selected_demo.as_ref().unwrap().tps())
+                                    .round() as u32)
+                                    .clamp(
+                                        0,
+                                        self.selected_demo
+                                            .as_ref()
+                                            .unwrap()
+                                            .header
+                                            .as_ref()
+                                            .map_or(0, |h| h.ticks),
+                                    ),
+                                true,
+                            )
+                            .await;
                     }
                     RconAction::Stop => {
                         let _ = self.rcon_manager.stop_playback().await;
@@ -278,23 +327,12 @@ impl AsyncComponent for DemoPlayerModel {
                 }
             }
             DemoPlayerMsg::PlayDemoDblclck(name) => {
-                if self.settings.doubleclick_play {
+                if self.settings.borrow().doubleclick_play {
                     sender.input(DemoPlayerMsg::Rcon(RconAction::Play(name)));
                 }
             }
             DemoPlayerMsg::DeleteSelected => {
-                let ad = adw::MessageDialog::builder()
-                    .default_response("cancel")
-                    .close_response("cancel")
-                    .body("Deleting selected demos!")
-                    .heading("Are you sure?")
-                    .transient_for(root)
-                    .build();
-
-                ad.add_responses(&[("cancel", "Cancel"), ("delete", "Delete")]);
-                ad.set_response_appearance("delete", adw::ResponseAppearance::Destructive);
-
-                if ad.choose_future().await.as_str() == "delete" {
+                if ui_util::delete_dialog(root).await {
                     for d in self.demo_list.model().get_selected_demos() {
                         self.demo_manager.delete_demo(&d).await;
                     }
@@ -306,6 +344,13 @@ impl AsyncComponent for DemoPlayerModel {
                     self.demo_manager.get_demos().clone(),
                     scroll,
                 ));
+            }
+            DemoPlayerMsg::DemoSave(demo) => {
+                let name = demo.filename.clone();
+                demo.save_json().await;
+                self.demo_manager.get_demos_mut().insert(name.clone(), demo);
+                sender.input(DemoPlayerMsg::DemoSelected(Some(name), true));
+                sender.input(DemoPlayerMsg::DemosChanged(false));
             }
         }
     }

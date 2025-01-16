@@ -1,6 +1,5 @@
 use adw::prelude::*;
 use gtk::glib;
-use gtk::prelude::*;
 use relm4::prelude::*;
 
 use crate::{rcon_manager::RconManager, settings::Settings};
@@ -71,9 +70,6 @@ impl Component for PreferencesModel {
                         set_title: "Event skip offset",
                         set_subtitle: "How many seconds before the even the playback should start",
                         set_digits: 1,
-                        connect_changed[sender] => move |sr| {
-                            sender.input(PreferencesMsg::EventSkipOffset(sr.adjustment().value()));
-                        },
                         #[wrap(Some)]
                         set_adjustment = &gtk::Adjustment {
                             set_lower: -300.0,
@@ -81,6 +77,9 @@ impl Component for PreferencesModel {
                             set_page_increment: 1.0,
                             set_step_increment: 0.1,
                             set_value: model.settings.event_skip_predelay.into(),
+                            connect_value_changed[sender] => move |adj| {
+                                sender.input(PreferencesMsg::EventSkipOffset(adj.value()));
+                            },
                         }
                     },
 

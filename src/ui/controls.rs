@@ -1,26 +1,31 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use adw::prelude::*;
 use relm4::prelude::*;
 
 use crate::demo_manager::Demo;
+use crate::settings::Settings;
 use crate::util::sec_to_timestamp;
 use crate::util::ticks_to_sec;
 
+use super::ui_util;
 use super::window::RconAction;
 
 #[derive(Debug)]
 pub enum ControlsOut {
     Rcon(RconAction),
-    ConvertReplay(String),
     Inspect(String),
 
     SaveChanges,
     DiscardChanges,
+    PlayheadMoved(u32),
 }
 
 #[derive(Debug)]
 pub enum ControlsMsg {
-    SetDemo(Option<Demo>),
-    SetDirty,
+    SetDemo(Option<Demo>, bool),
+    SetDirty(bool),
 
     PlayheadMoved(f64),
     Play,
@@ -35,16 +40,18 @@ pub enum ControlsMsg {
     DiscardChanges,
 }
 
-#[derive(Default)]
 pub struct ControlsModel {
     dirty: bool,
     demo: Option<Demo>,
     playhead_time: f64,
+
+    window: adw::Window,
+    settings: Rc<RefCell<Settings>>,
 }
 
-#[relm4::component(pub)]
-impl Component for ControlsModel {
-    type Init = ();
+#[relm4::component(async pub)]
+impl AsyncComponent for ControlsModel {
+    type Init = (adw::Window, Rc<RefCell<Settings>>);
     type Input = ControlsMsg;
     type Output = ControlsOut;
     type CommandOutput = ();
@@ -192,29 +199,41 @@ impl Component for ControlsModel {
         }
     }
 
-    fn init(
-        _: Self::Init,
+    async fn init(
+        init: Self::Init,
         root: Self::Root,
-        sender: ComponentSender<Self>,
-    ) -> ComponentParts<Self> {
-        let model = ControlsModel::default();
+        sender: AsyncComponentSender<Self>,
+    ) -> AsyncComponentParts<Self> {
+        let model = ControlsModel {
+            demo: None,
+            dirty: false,
+            playhead_time: 0.0,
+            window: init.0,
+            settings: init.1,
+        };
 
         let widgets = view_output!();
 
-        ComponentParts { model, widgets }
+        AsyncComponentParts { model, widgets }
     }
 
-    fn update_with_view(
+    async fn update_with_view(
         &mut self,
         widgets: &mut Self::Widgets,
         message: Self::Input,
-        sender: ComponentSender<Self>,
-        root: &Self::Root,
+        sender: AsyncComponentSender<Self>,
+        _: &Self::Root,
     ) {
+        //log::debug!("{:?}", message);
         match message {
-            ControlsMsg::PlayheadMoved(val) => self.playhead_time = val,
-            ControlsMsg::SetDemo(dem) => {
-                self.playhead_time = 0.0;
+            ControlsMsg::PlayheadMoved(val) => {
+                self.playhead_time = val;
+                let _ = sender.output(ControlsOut::PlayheadMoved(val as u32));
+            }
+            ControlsMsg::SetDemo(dem, keep_playhead) => {
+                if !keep_playhead {
+                    self.playhead_time = 0.0;
+                }
                 widgets.playhead.clear_marks();
                 for event in dem.as_ref().map_or(&vec![], |d| &d.events) {
                     widgets
@@ -222,6 +241,7 @@ impl Component for ControlsModel {
                         .add_mark(event.tick as f64, gtk::PositionType::Bottom, None);
                 }
                 self.demo = dem;
+                self.dirty = false;
             }
             ControlsMsg::Play => {
                 let _ = sender.output(ControlsOut::Rcon(RconAction::Play(
@@ -258,10 +278,56 @@ impl Component for ControlsModel {
                     .playhead_time
                     .clamp(0.0, widgets.playhead.adjustment().upper());
             }
-            ControlsMsg::ConvertReplay => {
-                let _ = sender.output(ControlsOut::ConvertReplay(
-                    self.demo.as_ref().unwrap().filename.clone(),
-                ));
+            ControlsMsg::ConvertReplay => 'replay: {
+                if let Some(demo) = &mut self.demo {
+                    let tf_folder_path =
+                        async_std::path::PathBuf::from(&self.settings.borrow().tf_folder_path);
+                    if !tf_folder_path.is_dir().await {
+                        ui_util::notice_dialog(
+                            &self.window,
+                            "TF2 folder does not exist or cannot be accessed",
+                            "Please check your TF2 folder setting",
+                        )
+                        .await;
+                        break 'replay;
+                    }
+                    let replay_folder = tf_folder_path
+                        .join("tf")
+                        .join("replay")
+                        .join("client")
+                        .join("replays");
+                    if demo.has_replay(&replay_folder).await {
+                        ui_util::notice_dialog(&self.window, "Demo already converted", "").await;
+                        break 'replay;
+                    }
+                    if let Some(title) = ui_util::entry_dialog(
+                        &self.window,
+                        "Replay title",
+                        "Title to save the replay under",
+                        &demo.filename,
+                    )
+                    .await
+                    {
+                        match demo.convert_to_replay(&replay_folder, &title).await {
+                            Ok(_) => {
+                                ui_util::notice_dialog(
+                                    &self.window,
+                                    "Replay created successfully",
+                                    "",
+                                )
+                                .await
+                            }
+                            Err(e) => {
+                                ui_util::notice_dialog(
+                                    &self.window,
+                                    "Failed to create replay",
+                                    &e.to_string(),
+                                )
+                                .await
+                            }
+                        };
+                    }
+                }
             }
             ControlsMsg::InspectDemo => {
                 let _ = sender.output(ControlsOut::Inspect(
@@ -276,7 +342,7 @@ impl Component for ControlsModel {
                 let _ = sender.output(ControlsOut::SaveChanges);
                 self.dirty = false;
             }
-            ControlsMsg::SetDirty => self.dirty = true,
+            ControlsMsg::SetDirty(state) => self.dirty = state,
         }
         self.update_view(widgets, sender);
     }
