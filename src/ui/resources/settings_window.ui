@@ -34,6 +34,7 @@
             <child>
               <object class="AdwEntryRow" id="tf_folder_entry">
                 <property name="title">TF2 folder</property>
+                <property name="tooltip-text">Folder that contains the "tf" folder, if set incorrectly replays will not show up in-game!</property>
               </object>
             </child>
           </object>
