@@ -127,6 +127,16 @@ impl AsyncComponent for InspectionModel {
 
                                     row.add_suffix(&gtk::Label::new(Some(&format!("{} ({})", crate::util::ticks_to_timestamp(chat.tick.into(), model.tps), chat.tick))));
 
+                                    let copy_btn = gtk::Button::builder().icon_name(relm4_icons::icon_names::COPY).tooltip_text("Copy message").has_frame(false).build();
+                                    let copy_txt = format!("{}{}: {}", kind, chat.from, chat.text);
+                                    copy_btn.connect_clicked(move |_|{
+                                        let disp = gtk::gdk::Display::default().unwrap();
+                                        let clip = disp.clipboard();
+                                        clip.set_text(&copy_txt);
+                                    });
+
+                                    row.add_suffix(&copy_btn);
+
                                     let row_sender = sender.clone();
                                     let tick: u32 = chat.tick.into();
                                     row.connect_activated(move |_|{
