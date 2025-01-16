@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct Settings {
     pub demo_folder_path: String,
+    pub replay_folder_path: String,
     pub rcon_pw: String,
     pub event_skip_predelay: f32,
     pub doubleclick_play: bool,
@@ -18,6 +19,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             demo_folder_path: Default::default(),
+            replay_folder_path: Default::default(),
             rcon_pw: Default::default(),
             event_skip_predelay: 30.0,
             doubleclick_play: false,

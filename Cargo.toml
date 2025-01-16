@@ -5,7 +5,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-tf-demo-parser = { git = "https://github.com/demostf/parser.git", tag = "v0.5.0"}
+tf-demo-parser = "0.5.1"
 bitbuffer = { version = "0.10.9", features = ["serde"] }
 glob = "0.3.1"
 humantime = "2.1.0"
@@ -22,6 +22,7 @@ trash = "4.0.0"
 async-std = { version = "1.12.0", features = ["attributes"] }
 gtk-macros = "0.3.0"
 adw = { version = "0.6.0", package = "libadwaita", features = ["v1_4", "v1_5"] }
+rand = "0.8.5"
 
 [build-dependencies]
 glib-build-tools = "0.19.0"

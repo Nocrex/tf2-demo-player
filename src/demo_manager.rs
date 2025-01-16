@@ -1,10 +1,11 @@
 use tf_demo_parser::demo::header::Header;
-use std::{collections::HashMap, fs::Metadata, path::{Path, PathBuf}};
+use std::{collections::HashMap, fs::Metadata};
 use bitbuffer::BitRead;
 use glob::glob;
 use serde::{Serialize, Deserialize};
-use async_std::{fs, task};
+use async_std::{fs, io, path::{Path, PathBuf}, task};
 use trash;
+use rand::Rng;
 
 #[derive(Serialize, Deserialize)]
 struct EventContainer {
@@ -103,6 +104,42 @@ impl Demo {
     pub fn tps(&self) -> Option<f32> {
         Some(self.header.as_ref()?.ticks as f32/self.header.as_ref()?.duration)
     }
+    
+    pub async fn convert_to_replay(&mut self, replays_folder: &Path) -> io::Result<()> {
+        create_replay_index_file(replays_folder).await?;
+
+        let replay_demo_path = replays_folder.join(&self.filename);
+        fs::copy(&self.path, &replay_demo_path).await?;
+
+        let mut replay_handle: u32 = rand::thread_rng().gen();
+        while replays_folder.join(format!("replay_{replay_handle}.dmx")).exists().await {
+            replay_handle = rand::thread_rng().gen();
+        }
+
+        self.read_data().await;
+        let dmx_file_content = format!(
+"replay_{replay_handle}
+{{
+\t\"handle\"\t\"{replay_handle}\"
+\t\"map\"\t\"{1}\"
+\t\"complete\"\t\"1\"
+\t\"title\"\t\"{0}\"
+\t\"recon_filename\"\t\"{0}\"
+}}
+" , self.filename, self.header.as_ref().unwrap().map);
+        
+        fs::write(replays_folder.join(format!("replay_{replay_handle}.dmx")), dmx_file_content).await?;
+        Ok(())
+    }
+}
+
+
+async fn create_replay_index_file(replay_folder: &Path) -> io::Result<()>{
+    let index_path = replay_folder.join("replays.dmx");
+    if !index_path.exists().await {
+        fs::write(index_path, "\"root\"\n{\n\t\"version\"\t\"0\"\n}").await?;
+    }
+    Ok(())
 }
 
 #[derive(Default, Clone)]
@@ -118,7 +155,7 @@ impl DemoManager {
     pub async fn load_demos(&mut self, folder_path: &String){
         self.demos.clear();
         for path in glob(&format!("{}/*.dem",folder_path)).unwrap() {
-            let d = Demo::new(path.unwrap().as_path());
+            let d = Demo::new(Path::new(path.unwrap().to_str().unwrap()));
             self.demos.insert(d.filename.to_owned(), d);
         }
         for demo in &mut self.demos.values_mut() {
