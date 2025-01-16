@@ -24,6 +24,11 @@ relm4-components = { version = "0.9.1", features = ["libadwaita"] }
 num_enum = "0.7.3"
 parse-display = "0.10.0"
 relm4-icons = { version = "0.9.0", features = ["icon-development-kit"] }
+regex = "1.11.1"
+regex-macro = "0.2.0"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52.0"
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1.19"
