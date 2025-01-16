@@ -1,6 +1,5 @@
 #![windows_subsystem = "windows"]
 mod demo_manager;
-mod inspector;
 mod rcon_manager;
 mod settings;
 
