@@ -5,14 +5,28 @@ use crate::demo_manager::Demo;
 
 pub enum Command<'a> {
     PlayDemo(&'a Demo),
-    SkipToTick(u32),
+    SkipToTick(u32, bool),
+    SkipRelative(u32, bool),
+    SetEndTick(u32),
+    DemoDebug(bool),
+    PausePlayback(),
+    ResumePlayback(),
+    SetPlaybackSpeed(f32),
+    /* StartRecording(&'a str, Codec), */
 }
 
 impl Command<'_> {
     pub fn get_command(&self) -> String {
         match self {
-            Self::PlayDemo(d) => format!("playdemo \"{}\"", d.get_path()),
-            Self::SkipToTick(t) => format!("demo_gototick {}", t),
+            Command::PlayDemo(d) => format!("disconnect; playdemo \"{}\"", d.get_path()),
+            Command::SkipToTick(t, p) => format!("demo_gototick {} 0 {}", t, *p as u8),
+            Command::SkipRelative(t, p) => format!("demo_gototick {} 1 {}", t, *p as u8),
+            Command::SetEndTick(t) => format!("demo_setendtick {}", t),
+            Command::DemoDebug(b) => format!("demo_debug {}", *b as u8),
+            Command::PausePlayback() => "demo_pause".to_owned(),
+            Command::ResumePlayback() => "demo_resume".to_owned(),
+            Command::SetPlaybackSpeed(s) => format!("demo_timescale {:.2}", s),
+            /* Command::StartRecording(name, codec) => format!("startmovie \"{}\" {}", name, codec.params()), */
         }
     }
 }
@@ -62,6 +76,13 @@ impl RconManager {
         log::debug!("Sending command: {}", cmd);
         let res = conn.cmd(&cmd).await;
         log::debug!("Response: {:?}", res);
+        if let Err(e) = &res {
+            match e {
+                Error::Io(_) => self.conn = None,
+                Error::Auth => self.conn = None,
+                Error::CommandTooLong => {}
+            }
+        }
         res
     }
 
@@ -69,7 +90,7 @@ impl RconManager {
         self.send_command(Command::PlayDemo(demo)).await
     }
 
-    pub async fn skip_to_tick(&mut self, tick: u32) -> Result<String, Error> {
-        self.send_command(Command::SkipToTick(tick)).await
+    pub async fn skip_to_tick(&mut self, tick: u32, pause: bool) -> Result<String, Error> {
+        self.send_command(Command::SkipToTick(tick, pause)).await
     }
 }

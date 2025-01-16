@@ -19,10 +19,11 @@ pub struct Event {
 
 #[derive(Debug, Clone)]
 pub struct Demo {
-    path: PathBuf,
+    pub path: PathBuf,
     pub filename: String,
     pub header: Option<Header>,
     pub events: Vec<Event>,
+    pub notes: Option<String>,
 }
 
 impl Demo {
@@ -32,6 +33,7 @@ impl Demo {
             filename: path.file_name().unwrap().to_str().unwrap().into(),
             header: None,
             events: Vec::new(),
+            notes: None,
         }
     }
 
