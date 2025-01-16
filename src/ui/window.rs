@@ -1,9 +1,9 @@
-use std::{cell::RefCell, collections::HashSet, hash::RandomState, path::PathBuf, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, hash::RandomState, rc::Rc};
 
 use glib::Object;
 use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, AlertDialog, Application, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NoSelection, NumericSorter, SortListModel};
 
-use crate::{demo_manager::{Demo, DemoManager}, rcon_manager::{self, RconManager}, settings::Settings, util::{sec_to_timestamp, ticks_to_sec}};
+use crate::{demo_manager::{Demo, DemoManager}, rcon_manager::RconManager, settings::Settings, util::{sec_to_timestamp, ticks_to_sec}};
 
 use super::{demo_object::DemoObject, event_object::EventObject};
 
@@ -67,6 +67,16 @@ mod imp {
         #[template_child]
         pub skip_forward_button: TemplateChild<Button>,
         
+        #[template_child]
+        pub detail_edit_cancel: TemplateChild<Button>,
+        #[template_child]
+        pub detail_edit_save: TemplateChild<Button>,
+        #[template_child]
+        pub detail_edit: TemplateChild<Box>,
+
+        #[template_child]
+        pub detail_box: TemplateChild<Box>,
+
         #[template_child]
         pub name_entry: TemplateChild<Entry>,
         #[template_child]
@@ -232,6 +242,7 @@ impl Window {
             self.imp().name_entry.buffer().set_text(&demo.filename);
             self.imp().name_entry.set_icon_activatable(gtk::EntryIconPosition::Secondary, true);
             self.imp().notes_area.buffer().set_text(demo.notes.to_owned().unwrap_or_default().as_str());
+            self.imp().detail_box.set_sensitive(true);
             if let Some(header) = &demo.header {
                 self.imp().map_entry.buffer().set_text(&header.map);
                 self.imp().nick_entry.buffer().set_text(&header.nick);
@@ -251,6 +262,7 @@ impl Window {
             self.imp().server_entry.buffer().set_text("");
             self.imp().name_entry.set_icon_activatable(gtk::EntryIconPosition::Secondary, false);
             self.imp().notes_area.buffer().set_text("");
+            self.imp().detail_box.set_sensitive(false);
         }
     }
 
@@ -333,6 +345,23 @@ impl Window {
             let tps = wnd.get_selected_demo().unwrap().tps().unwrap_or(Demo::TICKRATE);
             wnd.imp().playbar.set_value(wnd.imp().playbar.value() + 30.0*tps as f64);
         }));
+
+        self.imp().detail_edit_cancel.connect_clicked(clone!(@weak self as wnd => move |_|{
+            wnd.refresh();
+        }));
+
+        self.imp().detail_edit_save.connect_clicked(clone!(@weak self as wnd => move |b|{
+            glib::spawn_future_local(clone!(@weak wnd, @weak b => async move {
+                b.set_sensitive(false);
+                let buf = wnd.imp().notes_area.buffer();
+                let mut demo = wnd.get_selected_demo().unwrap();
+                demo.notes = Some(buf.text(&buf.start_iter(), &buf.end_iter(), true).to_string());
+                demo.save_json().await;
+                wnd.demo_manager().borrow_mut().get_demos_mut().insert(demo.filename.clone(), demo);
+                b.set_sensitive(true);
+                wnd.refresh();
+            }));
+        }));
     }
 
     fn setup_detail_view(&self){
@@ -373,6 +402,10 @@ impl Window {
         self.imp().event_list.connect_activate(clone!(@weak self as wnd => move |_,i|{
             let evob = wnd.event_model().item(i).unwrap().downcast::<EventObject>().unwrap();
             wnd.imp().playbar.set_value(evob.tick() as f64);
+        }));
+
+        self.imp().notes_area.buffer().connect_changed(clone!(@weak self as wnd => move |_|{
+            wnd.imp().detail_edit.set_sensitive(true);
         }));
     }
 
@@ -538,6 +571,7 @@ impl Window {
                 wnd.update_detail_view();
     
                 wnd.imp().left_button_box.set_sensitive(false);
+                wnd.imp().detail_edit.set_sensitive(false);
                 return;
             }
             let demo = demo.unwrap();
@@ -550,6 +584,7 @@ impl Window {
             for event in &demo.events {
                 wnd.imp().playbar.add_mark(event.tick as f64, gtk::PositionType::Bottom, None);
             }
+            wnd.imp().detail_edit.set_sensitive(false);
         }));
     }
 }
