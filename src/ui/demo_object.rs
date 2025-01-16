@@ -2,6 +2,7 @@ use std::time::SystemTime;
 
 use gtk::glib::Object;
 use gtk::glib;
+use relm4::gtk;
 
 use crate::demo_manager::Demo;
 
@@ -40,6 +41,7 @@ mod imp {
     use gtk::glib;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
+    use relm4::gtk;
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::DemoObject)]

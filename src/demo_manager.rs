@@ -30,7 +30,6 @@ pub struct Demo {
     pub events: Vec<Event>,
     pub notes: Option<String>,
     pub metadata: Option<Metadata>,
-    pub match_data: Option<Rc<tf_demo_parser::MatchState>>,
 }
 
 impl Demo {
@@ -43,7 +42,6 @@ impl Demo {
             events: Vec::new(),
             notes: None,
             metadata: None,
-            match_data: None,
         }
     }
 
@@ -51,10 +49,12 @@ impl Demo {
         if let Some(_) = self.header {
             return;
         }
-        let f = fs::read(&self.path).await.unwrap();
+        {
+            let f = fs::read(&self.path).await.unwrap();
 
-        let demo = tf_demo_parser::Demo::new(&f);
-        self.header = Header::read(&mut demo.get_stream()).map_or(None, |r|Some(r));
+            let demo = tf_demo_parser::Demo::new(&f);
+            self.header = Header::read(&mut demo.get_stream()).map_or(None, |r|Some(r));
+        }
 
         let mut bookmark_file = self.path.clone();
         bookmark_file.set_extension("json");
@@ -75,7 +75,7 @@ impl Demo {
         let parser = tf_demo_parser::DemoParser::new(demo.get_stream());
 
         let (_, state) = parser.parse()?;
-        self.match_data = Some(Rc::new(state));
+        //self.match_data = Some(Rc::new(state));
         Ok(())
     }
 
@@ -118,8 +118,54 @@ impl Demo {
             .inspect_err(|e|log::warn!("Couldn't save bookmark file {}, {}", bookmark_file.display(), e));
     }
 
-    pub fn tps(&self) -> Option<f32> {
-        Some(self.header.as_ref()?.ticks as f32/self.header.as_ref()?.duration)
+    pub fn tps(&self) -> f32 {
+        self.header.as_ref().map(|h|h.ticks as f32 / h.duration).unwrap_or(Demo::TICKRATE)
+    }
+
+    pub async fn convert_to_replay(&mut self, replays_folder: &Path, title: &str) -> io::Result<()> {
+        create_replay_index_file(replays_folder).await?;
+
+        let replay_demo_path = replays_folder.join(&self.filename);
+        fs::copy(&self.path, &replay_demo_path).await?;
+
+        let mut replay_handle: u32 = rand::thread_rng().gen();
+        while replays_folder.join(format!("replay_{replay_handle}.dmx")).exists().await {
+            replay_handle = rand::thread_rng().gen();
+        }
+
+        let create_date: chrono::DateTime<chrono::Local> = chrono::DateTime::from(
+            self.metadata.as_ref()
+            .map(|m|m.created().ok())
+            .map_or(None, |d|d)
+            .unwrap_or(SystemTime::now())
+        );
+
+        let kv_date = (create_date.day() - 1) | ((create_date.month() - 1) << 5) | ((create_date.year() as u32 - 2009) << 9);
+        let kv_time = create_date.hour() | (create_date.minute() << 5) | (create_date.second() << 11);
+
+        self.read_data().await;
+        let dmx_file_content = format!(
+"replay_{replay_handle}
+{{
+\t\"handle\"\t\"{replay_handle}\"
+\t\"map\"\t\"{0}\"
+\t\"complete\"\t\"1\"
+\t\"title\"\t\"{title}\"
+\t\"recon_filename\"\t\"{1}\"
+\t\"spawn_tick\"\t\"-1\"
+\t\"death_tick\"\t\"-1\"
+\t\"status\"\t\"3\"
+\t\"length\"\t\"{2}\"
+\t\"record_time\"
+\t{{
+\t\t\"date\"\t\"{kv_date}\"
+\t\t\"time\"\t\"{kv_time}\"
+\t}}
+}}
+" , self.header.as_ref().unwrap().map, self.filename , self.header.as_ref().unwrap().duration);
+        
+        fs::write(replays_folder.join(format!("replay_{replay_handle}.dmx")), dmx_file_content).await?;
+        Ok(())
     }
 }
 
@@ -166,7 +212,7 @@ impl DemoManager {
     }
 
     pub async fn delete_demo(&mut self, name: &str){
-        let demo = self.demos.get(name).unwrap().to_owned();
+        let demo = self.demos.remove(name).unwrap();
 
         let mut bookmark_path = demo.path.clone();
         bookmark_path.set_extension("json");
@@ -181,8 +227,6 @@ impl DemoManager {
             }
 
         }).await;
-        
-        self.demos.remove(&demo.filename);
     }
 
     pub async fn delete_empty_demos(&mut self) {
@@ -199,49 +243,4 @@ impl DemoManager {
         }
     }
 
-    pub async fn convert_to_replay(&self, replays_folder: &Path, demo: &mut Demo, title: &str) -> io::Result<()> {
-        create_replay_index_file(replays_folder).await?;
-
-        let replay_demo_path = replays_folder.join(&demo.filename);
-        fs::copy(&demo.path, &replay_demo_path).await?;
-
-        let mut replay_handle: u32 = rand::thread_rng().gen();
-        while replays_folder.join(format!("replay_{replay_handle}.dmx")).exists().await {
-            replay_handle = rand::thread_rng().gen();
-        }
-
-        let create_date: chrono::DateTime<chrono::Local> = chrono::DateTime::from(
-            demo.metadata.as_ref()
-            .map(|m|m.created().ok())
-            .map_or(None, |d|d)
-            .unwrap_or(SystemTime::now())
-        );
-
-        let kv_date = (create_date.day() - 1) | ((create_date.month() - 1) << 5) | ((create_date.year() as u32 - 2009) << 9);
-        let kv_time = create_date.hour() | (create_date.minute() << 5) | (create_date.second() << 11);
-
-        demo.read_data().await;
-        let dmx_file_content = format!(
-"replay_{replay_handle}
-{{
-\t\"handle\"\t\"{replay_handle}\"
-\t\"map\"\t\"{0}\"
-\t\"complete\"\t\"1\"
-\t\"title\"\t\"{title}\"
-\t\"recon_filename\"\t\"{1}\"
-\t\"spawn_tick\"\t\"-1\"
-\t\"death_tick\"\t\"-1\"
-\t\"status\"\t\"3\"
-\t\"length\"\t\"{2}\"
-\t\"record_time\"
-\t{{
-\t\t\"date\"\t\"{kv_date}\"
-\t\t\"time\"\t\"{kv_time}\"
-\t}}
-}}
-" , demo.header.as_ref().unwrap().map, demo.filename , demo.header.as_ref().unwrap().duration);
-        
-        fs::write(replays_folder.join(format!("replay_{replay_handle}.dmx")), dmx_file_content).await?;
-        Ok(())
-    }
 }
