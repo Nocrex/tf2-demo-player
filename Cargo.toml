@@ -2,6 +2,7 @@
 name = "tf2-demo-player"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 tf-demo-parser = { git = "https://github.com/demostf/parser.git", tag = "v0.5.0"}
@@ -18,3 +19,6 @@ gtk = { version = "0.8.0", package = "gtk4", features = ["v4_12"] }
 opener = { version = "0.6.1", features = ["reveal"] }
 chrono = "0.4.34"
 size_format = "1.0.2"
+
+[build-dependencies]
+glib-build-tools = "0.19.0"
