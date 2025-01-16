@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashSet, hash::RandomState, rc::Rc};
 
 use glib::Object;
-use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, Button, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NumericSorter, SingleSelection, SortListModel};
+use gtk::{gio::{self, Menu, MenuItem, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, Button, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NumericSorter, SingleSelection, SortListModel};
 use adw::{prelude::*, Application};
 
 use crate::{demo_manager::{Demo, DemoManager, Event}, rcon_manager::RconManager, settings::Settings, util::{sec_to_timestamp, ticks_to_sec}};
@@ -25,7 +25,9 @@ mod imp {
     use std::rc::Rc;
 
     use adw::subclass::application_window::AdwApplicationWindowImpl;
+    use adw::SplitButton;
     use glib::subclass::InitializingObject;
+    use gtk::gio::Menu;
     use gtk::{gio, Box, Button, ColumnView, Entry, Label, ListView, MultiSelection, Paned, Scale, SingleSelection, TextView};
     use gtk::subclass::prelude::*;
     use gtk::{glib, CompositeTemplate};
@@ -42,7 +44,8 @@ mod imp {
         pub rcon_manager: RefCell<Option<Rc<RefCell<RconManager>>>>,
 
         #[template_child]
-        pub button_open_folder: TemplateChild<Button>,
+        pub button_open_folder: TemplateChild<SplitButton>,
+        pub recent_menu: RefCell<Option<Menu>>,
         #[template_child]
         pub delete_button: TemplateChild<Button>,
         #[template_child]
@@ -191,9 +194,19 @@ impl Window {
         open_settings.connect_activate(clone!(@weak self as wnd => move |_,_|{
             SettingsWindow::new(&wnd).show();
         }));
+
+        let open_folder = SimpleAction::new("open-folder", Some(&String::static_variant_type()));
+        self.application().unwrap().add_action(&open_folder);
+        open_folder.connect_activate(clone!(@weak self as wnd => move |_, param|{
+            let path = param.unwrap().get::<String>().unwrap();
+            glib::spawn_future_local(clone!(@weak wnd => async move {
+                wnd.open_folder(&path).await;
+            }));
+        }));
     }
 
     pub fn refresh(&self){
+        self.update_recent_folders();
         self.update_demos();
         self.selection().emit_by_name::<()>("selection-changed", &[&0u32.to_value(),&0u32.to_value()]);
     }
@@ -216,6 +229,10 @@ impl Window {
 
     fn event_model(&self) -> gio::ListStore {
         self.imp().event_model.borrow().clone().unwrap()
+    }
+
+    fn recent_menu(&self) -> Menu{
+        self.imp().recent_menu.borrow().clone().unwrap()
     }
 
     fn update_event_selection(&self) {
@@ -304,6 +321,15 @@ impl Window {
         }
     }
 
+    fn update_recent_folders(&self){
+        self.recent_menu().remove_all();
+        for path in &self.settings().borrow().recent_folders {
+            let item = MenuItem::new(Some(path), None);
+            item.set_action_and_target_value(Some("app.open-folder"), Some(&path.to_variant()));
+            self.recent_menu().append_item(&item);
+        }
+    }
+
     fn update_detail_view(&self){
         self.event_model().remove_all();
         if let Some(demo) = self.get_selected_demo(){
@@ -349,16 +375,27 @@ impl Window {
         }
     }
 
+    async fn open_folder(&self, path: &str){
+        self.settings().borrow_mut().demo_folder_path = path.to_owned();
+        self.settings().borrow_mut().recent_folders.retain(|p| *p != path);
+        self.settings().borrow_mut().recent_folders.insert(0, path.to_owned());
+        self.settings().borrow_mut().recent_folders.truncate(5);
+        self.settings().borrow().save();
+        self.demo_manager().borrow_mut().load_demos(path).await;
+        self.refresh();
+    }
+
     fn setup_titlebar_callbacks(&self){
+        let recent_menu = Menu::new();
+        self.imp().button_open_folder.set_menu_model(Some(&recent_menu));
+        self.imp().recent_menu.replace(Some(recent_menu));
         self.imp().button_open_folder.connect_clicked(clone!(@weak self as wnd => move|_|{
             glib::spawn_future_local(clone!(@weak wnd => async move {
                 let dia = FileDialog::builder().build();
                 let res = dia.select_folder_future(Some(&wnd)).await;
                 if let Ok(file) = res{
-                    wnd.settings().borrow_mut().demo_folder_path = file.path().unwrap().display().to_string();
-                    wnd.settings().borrow().save();
-                    wnd.demo_manager().borrow_mut().load_demos(&wnd.settings().borrow().demo_folder_path).await;
-                    wnd.refresh();
+                    let path = file.path().unwrap().display().to_string();
+                    wnd.open_folder(&path).await;
                 }
             }));
         }));

@@ -10,6 +10,7 @@ pub struct Settings {
     pub rcon_pw: String,
     pub event_skip_predelay: f32,
     pub doubleclick_play: bool,
+    pub recent_folders: Vec<String>,
 
     #[serde(skip)]
     pub first_launch: bool,
@@ -23,6 +24,7 @@ impl Default for Settings {
             rcon_pw: Default::default(),
             event_skip_predelay: 30.0,
             doubleclick_play: false,
+            recent_folders: Vec::new(),
             
             first_launch: false
         }

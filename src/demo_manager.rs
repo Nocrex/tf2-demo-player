@@ -130,7 +130,7 @@ impl DemoManager {
         DemoManager::default()
     }
 
-    pub async fn load_demos(&mut self, folder_path: &String){
+    pub async fn load_demos(&mut self, folder_path: &str){
         self.demos.clear();
         for path in glob(&format!("{}/*.dem",folder_path)).unwrap() {
             let d = Demo::new(Path::new(path.unwrap().to_str().unwrap()));
