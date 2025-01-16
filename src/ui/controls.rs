@@ -50,7 +50,7 @@ pub struct ControlsModel {
     window: adw::Window,
     settings: Rc<RefCell<Settings>>,
 
-    inspection_wnd: Controller<InspectionModel>,
+    inspection_wnd: AsyncController<InspectionModel>,
 }
 
 #[relm4::component(async pub)]
