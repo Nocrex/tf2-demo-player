@@ -1,3 +1,5 @@
+// Useless file with ideas for a possible automatic demo recording system
+
 pub enum Codec {
     WebM,
     H264,

@@ -1,5 +1,5 @@
 use tf_demo_parser::demo::header::Header;
-use std::path::{Path, PathBuf};
+use std::{fs::Metadata, path::{Path, PathBuf}};
 use bitbuffer::BitRead;
 use glob::glob;
 use serde::{Serialize, Deserialize};
@@ -7,7 +7,8 @@ use tokio::fs;
 
 #[derive(Serialize, Deserialize)]
 struct EventContainer {
-    events: Vec<Event>
+    events: Vec<Event>,
+    notes: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,6 +25,7 @@ pub struct Demo {
     pub header: Option<Header>,
     pub events: Vec<Event>,
     pub notes: Option<String>,
+    pub metadata: Option<Metadata>,
 }
 
 impl Demo {
@@ -34,6 +36,7 @@ impl Demo {
             header: None,
             events: Vec::new(),
             notes: None,
+            metadata: None,
         }
     }
 
@@ -53,11 +56,28 @@ impl Demo {
         if let Ok(char_bytes) = file{
             let parsed: EventContainer = serde_json::from_slice(&char_bytes).unwrap();
             self.events = parsed.events;
+            self.notes = parsed.notes;
         }
+
+        self.metadata = fs::metadata(&self.path).await.inspect_err(|e|log::warn!("Failed reading metadata for {}, {}", self.path.display(), e)).ok();
     }
 
     pub fn get_path(&self) -> String {
         self.path.display().to_string()
+    }
+
+    pub async fn save_json(&self) {
+        let container = EventContainer{
+            events: self.events.clone(),
+            notes: self.notes.clone(),
+        };
+        let json = serde_json::to_string_pretty(&container).unwrap();
+
+        let mut bookmark_file = self.path.clone();
+        bookmark_file.set_extension("json");
+
+        let _ = fs::write(&bookmark_file, json).await
+            .inspect_err(|e|log::warn!("Couldn't save bookmark file {}, {}", bookmark_file.display(), e));
     }
 }
 
