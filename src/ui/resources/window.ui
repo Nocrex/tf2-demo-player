@@ -186,7 +186,7 @@
                             </child>
                             <child>
                               <object class="GtkButton" id="convert_to_replay_button">
-                                <property name="icon-name">document-export-symbolic</property>
+                                <property name="icon-name">document-send-symbolic</property>
                                 <property name="tooltip-text">Convert to replay</property>
                               </object>
                             </child>
