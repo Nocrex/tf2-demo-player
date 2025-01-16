@@ -1,17 +1,18 @@
-use std::process::Command;
+use std::path::Path;
+
+use gvdb::gresource;
 
 fn main() {
     println!("cargo::rerun-if-changed=data");
-    Command::new("glib-compile-resources")
-        .arg(format!(
-            "--target={}/demoplayer.gresource",
-            std::env::var("OUT_DIR").unwrap()
-        ))
-        .arg("demoplayer.gresource.xml")
-        .current_dir("data")
-        .output()
-        .inspect(|o| assert!(o.status.success()))
-        .expect("Resource compilation failed");
+    let xml =
+        gresource::XmlManifest::from_file(&Path::new("data").join("demoplayer.gresource.xml"))
+            .unwrap();
+    let builder = gresource::BundleBuilder::from_xml(xml).unwrap();
+    std::fs::write(
+        Path::new(&std::env::var("OUT_DIR").unwrap()).join("demoplayer.gresource"),
+        builder.build().unwrap(),
+    )
+    .unwrap();
 
     #[cfg(target_os = "windows")]
     winresource::WindowsResource::new()
