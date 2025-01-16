@@ -14,357 +14,361 @@
       <attribute name="action">app.clean-unmarked</attribute>
     </item>
   </menu>
-  <template class="TFDemoPlayer" parent="GtkApplicationWindow">
+  <template class="TFDemoPlayer" parent="AdwApplicationWindow">
     <property name="width-request">1000</property>
     <property name="height-request">800</property>
     <property name="title">Demo Player</property>
-    <child type="titlebar">
-      <object class="GtkHeaderBar">
-        <property name="title-widget">
-          <object class="GtkLabel">
-            <property name="label">Demo Player</property>
-          </object>
-        </property>
-        <child type="start">
-          <object class="GtkButton" id="button_open_folder">
-            <property name="icon-name">folder-symbolic</property>
-            <property name="tooltip-text">Select demo folder</property>
-          </object>
-        </child>
-        <child type="end">
-          <object class="GtkMenuButton">
-            <property name="icon-name">open-menu-symbolic</property>
-            <property name="menu-model">title-menu</property>
-          </object>
-        </child>
-        <child type="end">
-          <object class="GtkButton" id="delete_button">
-            <property name="icon-name">edit-delete-symbolic</property>
-            <property name="tooltip-text">Delete selected demo</property>
-          </object>
-        </child>
-        <child type="end">
-          <object class="GtkButton" id="reload_button">
-            <property name="icon-name">object-rotate-right-symbolic</property>
-            <property name="tooltip-text">Reload demo folder</property>
-          </object>
-        </child>
-      </object>
-    </child>
     <child>
-      <object class="GtkPaned">
-        <property name="orientation">1</property>
-        <property name="position">400</property>
-        <child type="start">
-          <object class="GtkScrolledWindow">
-            <property name="has-frame">true</property>
-            <property name="hscrollbar-policy">2</property>
-            <child>
-              <object class="GtkColumnView" id="demo_list"></object>
+      <object class="AdwToolbarView">
+        <child type="top">
+          <object class="AdwHeaderBar">
+            <property name="title-widget">
+              <object class="GtkLabel">
+                <property name="label">Demo Player</property>
+              </object>
+            </property>
+            <child type="start">
+              <object class="GtkButton" id="button_open_folder">
+                <property name="icon-name">folder-symbolic</property>
+                <property name="tooltip-text">Select demo folder</property>
+              </object>
+            </child>
+            <child type="end">
+              <object class="GtkMenuButton">
+                <property name="icon-name">open-menu-symbolic</property>
+                <property name="menu-model">title-menu</property>
+              </object>
+            </child>
+            <child type="end">
+              <object class="GtkButton" id="delete_button">
+                <property name="icon-name">edit-delete-symbolic</property>
+                <property name="tooltip-text">Delete selected demo</property>
+              </object>
+            </child>
+            <child type="end">
+              <object class="GtkButton" id="reload_button">
+                <property name="icon-name">object-rotate-right-symbolic</property>
+                <property name="tooltip-text">Reload demo folder</property>
+              </object>
             </child>
           </object>
         </child>
-        <child type="end">
-          <object class="GtkBox">
+        <property name="content">
+          <object class="GtkPaned">
             <property name="orientation">1</property>
-            <property name="vexpand">true</property>
-            <property name="hexpand">true</property>
-            <child>
-              <object class="GtkGrid">
-                <property name="column-homogeneous">false</property>
-                <property name="margin-end">5</property>
-                <property name="margin-start">5</property>
-                <property name="margin-bottom">5</property>
+            <property name="position">400</property>
+            <child type="start">
+              <object class="GtkScrolledWindow">
+                <property name="has-frame">true</property>
+                <property name="hscrollbar-policy">2</property>
                 <child>
-                  <object class="GtkScale" id="playbar">
-                    <property name="orientation">0</property>
-                    <property name="hexpand">true</property>
-                    <property name="adjustment">
-                      <object class="GtkAdjustment">
-                        <property name="step-increment">1</property>
-                      </object>
-                    </property>
-                    <layout>
-                      <property name="column">0</property>
-                      <property name="row">0</property>
-                      <property name="row-span">1</property>
-                      <property name="column-span">1</property>
-                    </layout>
-                  </object>
+                  <object class="GtkColumnView" id="demo_list"></object>
                 </child>
+              </object>
+            </child>
+            <child type="end">
+              <object class="GtkBox">
+                <property name="orientation">1</property>
+                <property name="vexpand">true</property>
+                <property name="hexpand">true</property>
                 <child>
-                  <object class="GtkLabel" id="timestamp_label">
-                    <property name="halign">3</property>
-                    <property name="valign">1</property>
-                    <property name="justify">2</property>
-                    <property name="selectable">true</property>
-                    <property name="label">00:00.00
-tick 0</property>
-                    <property name="margin-top">10</property>
-                    <property name="margin-bottom">10</property>
-                    <layout>
-                      <property name="column">1</property>
-                      <property name="row">0</property>
-                      <property name="row-span">1</property>
-                      <property name="column-span">1</property>
-                    </layout>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkCenterBox">
-                    <layout>
-                      <property name="column">0</property>
-                      <property name="row">1</property>
-                      <property name="row-span">1</property>
-                      <property name="column-span">2</property>
-                    </layout>
-                    <child type="start">
-                      <object class="GtkBox" id="left_button_box">
+                  <object class="GtkGrid">
+                    <property name="column-homogeneous">false</property>
+                    <property name="margin-end">5</property>
+                    <property name="margin-start">5</property>
+                    <property name="margin-bottom">5</property>
+                    <child>
+                      <object class="GtkScale" id="playbar">
                         <property name="orientation">0</property>
-                        <property name="spacing">5</property>
-                        <child>
-                          <object class="GtkButton" id="play_button">
-                            <property name="icon-name">media-playback-start-symbolic</property>
-                            <property name="tooltip-text">Play demo</property>
+                        <property name="hexpand">true</property>
+                        <property name="adjustment">
+                          <object class="GtkAdjustment">
+                            <property name="step-increment">1</property>
+                          </object>
+                        </property>
+                        <layout>
+                          <property name="column">0</property>
+                          <property name="row">0</property>
+                          <property name="row-span">1</property>
+                          <property name="column-span">1</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="timestamp_label">
+                        <property name="halign">3</property>
+                        <property name="valign">1</property>
+                        <property name="justify">2</property>
+                        <property name="selectable">true</property>
+                        <property name="label">00:00.00
+    tick 0</property>
+                        <property name="margin-top">10</property>
+                        <property name="margin-bottom">10</property>
+                        <layout>
+                          <property name="column">1</property>
+                          <property name="row">0</property>
+                          <property name="row-span">1</property>
+                          <property name="column-span">1</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCenterBox">
+                        <layout>
+                          <property name="column">0</property>
+                          <property name="row">1</property>
+                          <property name="row-span">1</property>
+                          <property name="column-span">2</property>
+                        </layout>
+                        <child type="start">
+                          <object class="GtkBox" id="left_button_box">
+                            <property name="orientation">0</property>
+                            <property name="spacing">5</property>
+                            <child>
+                              <object class="GtkButton" id="play_button">
+                                <property name="icon-name">media-playback-start-symbolic</property>
+                                <property name="tooltip-text">Play demo</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="seek_button">
+                                <property name="icon-name">find-location-symbolic</property>
+                                <property name="tooltip-text">Skip to tick</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="stop_playback_button">
+                                <property name="icon-name">media-playback-stop-symbolic</property>
+                                <property name="tooltip-text">Stop Playback</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkSeparator">
+                                <property name="orientation">1</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="skip_backward_button">
+                                <property name="icon-name">media-seek-backward-symbolic</property>
+                                <property name="tooltip-text">-30s</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="skip_forward_button">
+                                <property name="icon-name">media-seek-forward-symbolic</property>
+                                <property name="tooltip-text">+30s</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
-                        <child>
-                          <object class="GtkButton" id="seek_button">
-                            <property name="icon-name">find-location-symbolic</property>
-                            <property name="tooltip-text">Skip to tick</property>
+                        <child type="end">
+                          <object class="GtkBox" id="detail_edit">
+                            <property name="orientation">0</property>
+                            <property name="spacing">5</property>
+                            <property name="sensitive">false</property>
+                            <child>
+                              <object class="GtkButton" id="detail_edit_cancel">
+                                <property name="icon-name">edit-clear-all-symbolic</property>
+                                <property name="tooltip-text">Cancel changes</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="detail_edit_save">
+                                <property name="icon-name">document-save-symbolic</property>
+                                <property name="tooltip-text">Save changes</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkPaned" id="detail_box">
+                    <property name="position">500</property>
+                    <property name="orientation">0</property>
+                    <child type="start">
+                      <object class="GtkScrolledWindow">
                         <child>
-                          <object class="GtkButton" id="stop_playback_button">
-                            <property name="icon-name">media-playback-stop-symbolic</property>
-                            <property name="tooltip-text">Stop Playback</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkSeparator">
-                            <property name="orientation">1</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkButton" id="skip_backward_button">
-                            <property name="icon-name">media-seek-backward-symbolic</property>
-                            <property name="tooltip-text">-30s</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkButton" id="skip_forward_button">
-                            <property name="icon-name">media-seek-forward-symbolic</property>
-                            <property name="tooltip-text">+30s</property>
+                          <object class="GtkGrid">
+                            <property name="width-request">400</property>
+                            <property name="column-homogeneous">false</property>
+                            <property name="row-homogeneous">false</property>
+                            <property name="row-spacing">10</property>
+                            <property name="column-spacing">20</property>
+                            <property name="margin-start">10</property>
+                            <property name="margin-end">10</property>
+                            <property name="margin-top">10</property>
+                            <property name="margin-bottom">10</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Name:</property>
+                                <property name="halign">1</property>
+                                <layout>
+                                  <property name="column">0</property>
+                                  <property name="row">0</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="name_entry">
+                                <property name="halign">0</property>
+                                <property name="valign">3</property>
+                                <property name="hexpand">true</property>
+                                <property name="editable">false</property>
+                                <property name="secondary-icon-sensitive">true</property>
+                                <property name="secondary-icon-activatable">true</property>
+                                <property name="secondary-icon-name">folder-open-symbolic</property>
+                                <property name="secondary-icon-tooltip-text">Reveal in files</property>
+                                <layout>
+                                  <property name="column">1</property>
+                                  <property name="row">0</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Map:</property>
+                                <property name="halign">1</property>
+                                <layout>
+                                  <property name="column">0</property>
+                                  <property name="row">1</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="map_entry">
+                                <property name="halign">0</property>
+                                <property name="valign">3</property>
+                                <property name="hexpand">true</property>
+                                <property name="editable">false</property>
+                                <layout>
+                                  <property name="column">1</property>
+                                  <property name="row">1</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Username:</property>
+                                <property name="halign">1</property>
+                                <layout>
+                                  <property name="column">0</property>
+                                  <property name="row">2</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="nick_entry">
+                                <property name="halign">0</property>
+                                <property name="valign">3</property>
+                                <property name="hexpand">true</property>
+                                <property name="editable">false</property>
+                                <layout>
+                                  <property name="column">1</property>
+                                  <property name="row">2</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Duration:</property>
+                                <property name="halign">1</property>
+                                <layout>
+                                  <property name="column">0</property>
+                                  <property name="row">3</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="duration_entry">
+                                <property name="halign">0</property>
+                                <property name="valign">3</property>
+                                <property name="hexpand">true</property>
+                                <property name="editable">false</property>
+                                <layout>
+                                  <property name="column">1</property>
+                                  <property name="row">3</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Server:</property>
+                                <property name="halign">1</property>
+                                <layout>
+                                  <property name="column">0</property>
+                                  <property name="row">4</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="server_entry">
+                                <property name="halign">0</property>
+                                <property name="valign">3</property>
+                                <property name="hexpand">true</property>
+                                <property name="editable">false</property>
+                                <layout>
+                                  <property name="column">1</property>
+                                  <property name="row">4</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Notes:</property>
+                                <property name="halign">1</property>
+                                <layout>
+                                  <property name="column">0</property>
+                                  <property name="row">5</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">1</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkTextView" id="notes_area">
+                                <property name="vexpand">true</property>
+                                <layout>
+                                  <property name="column">0</property>
+                                  <property name="row">6</property>
+                                  <property name="row-span">1</property>
+                                  <property name="column-span">2</property>
+                                </layout>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>
                     </child>
                     <child type="end">
-                      <object class="GtkBox" id="detail_edit">
-                        <property name="orientation">0</property>
-                        <property name="spacing">5</property>
-                        <property name="sensitive">false</property>
+                      <object class="GtkScrolledWindow">
                         <child>
-                          <object class="GtkButton" id="detail_edit_cancel">
-                            <property name="icon-name">edit-clear-all-symbolic</property>
-                            <property name="tooltip-text">Cancel changes</property>
+                          <object class="GtkListView" id="event_list">
+                            <property name="show-separators">true</property>
                           </object>
                         </child>
-                        <child>
-                          <object class="GtkButton" id="detail_edit_save">
-                            <property name="icon-name">document-save-symbolic</property>
-                            <property name="tooltip-text">Save changes</property>
-                          </object>
-                        </child>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-              </object>
-            </child>
-            <child>
-              <object class="GtkPaned" id="detail_box">
-                <property name="position">500</property>
-                <property name="orientation">0</property>
-                <child type="start">
-                  <object class="GtkScrolledWindow">
-                    <child>
-                      <object class="GtkGrid">
-                        <property name="width-request">400</property>
-                        <property name="column-homogeneous">false</property>
-                        <property name="row-homogeneous">false</property>
-                        <property name="row-spacing">10</property>
-                        <property name="column-spacing">20</property>
-                        <property name="margin-start">10</property>
-                        <property name="margin-end">10</property>
-                        <property name="margin-top">10</property>
-                        <property name="margin-bottom">10</property>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Name:</property>
-                            <property name="halign">1</property>
-                            <layout>
-                              <property name="column">0</property>
-                              <property name="row">0</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkEntry" id="name_entry">
-                            <property name="halign">0</property>
-                            <property name="valign">3</property>
-                            <property name="hexpand">true</property>
-                            <property name="editable">false</property>
-                            <property name="secondary-icon-sensitive">true</property>
-                            <property name="secondary-icon-activatable">true</property>
-                            <property name="secondary-icon-name">folder-open-symbolic</property>
-                            <property name="secondary-icon-tooltip-text">Reveal in files</property>
-                            <layout>
-                              <property name="column">1</property>
-                              <property name="row">0</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Map:</property>
-                            <property name="halign">1</property>
-                            <layout>
-                              <property name="column">0</property>
-                              <property name="row">1</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkEntry" id="map_entry">
-                            <property name="halign">0</property>
-                            <property name="valign">3</property>
-                            <property name="hexpand">true</property>
-                            <property name="editable">false</property>
-                            <layout>
-                              <property name="column">1</property>
-                              <property name="row">1</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Username:</property>
-                            <property name="halign">1</property>
-                            <layout>
-                              <property name="column">0</property>
-                              <property name="row">2</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkEntry" id="nick_entry">
-                            <property name="halign">0</property>
-                            <property name="valign">3</property>
-                            <property name="hexpand">true</property>
-                            <property name="editable">false</property>
-                            <layout>
-                              <property name="column">1</property>
-                              <property name="row">2</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Duration:</property>
-                            <property name="halign">1</property>
-                            <layout>
-                              <property name="column">0</property>
-                              <property name="row">3</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkEntry" id="duration_entry">
-                            <property name="halign">0</property>
-                            <property name="valign">3</property>
-                            <property name="hexpand">true</property>
-                            <property name="editable">false</property>
-                            <layout>
-                              <property name="column">1</property>
-                              <property name="row">3</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Server:</property>
-                            <property name="halign">1</property>
-                            <layout>
-                              <property name="column">0</property>
-                              <property name="row">4</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkEntry" id="server_entry">
-                            <property name="halign">0</property>
-                            <property name="valign">3</property>
-                            <property name="hexpand">true</property>
-                            <property name="editable">false</property>
-                            <layout>
-                              <property name="column">1</property>
-                              <property name="row">4</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Notes:</property>
-                            <property name="halign">1</property>
-                            <layout>
-                              <property name="column">0</property>
-                              <property name="row">5</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">1</property>
-                            </layout>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkTextView" id="notes_area">
-                            <property name="vexpand">true</property>
-                            <layout>
-                              <property name="column">0</property>
-                              <property name="row">6</property>
-                              <property name="row-span">1</property>
-                              <property name="column-span">2</property>
-                            </layout>
-                          </object>
-                        </child>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-                <child type="end">
-                  <object class="GtkScrolledWindow">
-                    <child>
-                      <object class="GtkListView" id="event_list">
-                        <property name="show-separators">true</property>
                       </object>
                     </child>
                   </object>
@@ -372,7 +376,7 @@ tick 0</property>
               </object>
             </child>
           </object>
-        </child>
+        </property>
       </object>
     </child>
   </template>

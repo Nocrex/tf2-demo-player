@@ -1,5 +1,6 @@
 use gtk::gio::ApplicationFlags;
-use gtk::{prelude::*, Application};
+use gtk::prelude::*;
+use adw::Application;
 
 use crate::demo_manager::DemoManager;
 use crate::rcon_manager::RconManager;

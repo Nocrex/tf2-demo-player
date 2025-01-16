@@ -1,7 +1,8 @@
 use std::{cell::RefCell, collections::HashSet, hash::RandomState, rc::Rc};
 
 use glib::Object;
-use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, AlertDialog, Application, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NoSelection, NumericSorter, SortListModel};
+use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, AlertDialog, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NoSelection, NumericSorter, SortListModel};
+use adw::Application;
 
 use crate::{demo_manager::{Demo, DemoManager}, rcon_manager::RconManager, settings::Settings, util::{sec_to_timestamp, ticks_to_sec}};
 
@@ -14,7 +15,7 @@ use gtk::{Expression, Label, ListItem, PropertyExpression, SignalListItemFactory
 
 glib::wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
-        @extends gtk::ApplicationWindow, gtk::Window, gtk::Widget,
+        @extends adw::ApplicationWindow, adw::Window, gtk::Window, gtk::ApplicationWindow, gtk::Widget,
         @implements gio::ActionGroup, gio::ActionMap, gtk::Accessible, gtk::Buildable,
                     gtk::ConstraintTarget, gtk::Native, gtk::Root, gtk::ShortcutManager;
 }
@@ -23,6 +24,7 @@ mod imp {
     use std::cell::RefCell;
     use std::rc::Rc;
 
+    use adw::subclass::application_window::AdwApplicationWindowImpl;
     use glib::subclass::InitializingObject;
     use gtk::{gio, Box, Button, ColumnView, Entry, Label, ListView, MultiSelection, Paned, Scale, TextView};
     use gtk::subclass::prelude::*;
@@ -101,7 +103,7 @@ mod imp {
     impl ObjectSubclass for Window {
         const NAME: &'static str = "TFDemoPlayer";
         type Type = super::Window;
-        type ParentType = gtk::ApplicationWindow;
+        type ParentType = adw::ApplicationWindow;
     
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
@@ -128,6 +130,7 @@ mod imp {
     impl WindowImpl for Window {}
 
     impl ApplicationWindowImpl for Window {}
+    impl AdwApplicationWindowImpl for Window {}
 }
 
 impl Window {

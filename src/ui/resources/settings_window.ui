@@ -1,122 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk" version="4.0"/>
-  <object class="GtkWindow" id="settings_window">
-    <property name="title">Settings</property>
+  <object class="AdwPreferencesWindow" id="settings_window">
     <property name="modal">true</property>
-    <property name="width-request">500</property>
-    <property name="height-request">400</property>
     <child>
-      <object class="GtkBox">
-        <property name="orientation">1</property>
+      <object class="AdwPreferencesPage">
+        <property name="icon_name">preferences-system-symbolic</property>
+        <property name="title">General</property>
         <child>
-          <object class="GtkScrolledWindow">
+          <object class="AdwPreferencesGroup">
+            <property name="title">RCon</property>
             <child>
-              <object class="GtkGrid">
-                <property name="margin-start">10</property>
-                <property name="margin-top">10</property>
-                <property name="margin-bottom">10</property>
-                <property name="margin-end">10</property>
-                <property name="row-spacing">5</property>
-                <property name="column-spacing">20</property>
-                <property name="row-homogeneous">false</property>
-                <property name="vexpand">true</property>
-                <property name="hexpand">true</property>
-                <child>
-                  <object class="GtkLabel">
-                    <property name="label">RCon Configuration</property>
-                    <property name="halign">1</property>
-                    <property name="margin-bottom">10</property>
-                    <style>
-                      <class name="title-3"/>
-                    </style>
-                    <layout>
-                      <property name="column">0</property>
-                      <property name="row">0</property>
-                      <property name="row-span">1</property>
-                      <property name="column-span">2</property>
-                    </layout>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkLabel">
-                    <property name="label">Password:</property>
-                    <layout>
-                      <property name="column">0</property>
-                      <property name="row">1</property>
-                      <property name="row-span">1</property>
-                      <property name="column-span">1</property>
-                    </layout>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkPasswordEntry" id="rcon_pw_entry">
-                    <property name="show-peek-icon">true</property>
-                    <property name="hexpand">true</property>
-                    <layout>
-                      <property name="column">1</property>
-                      <property name="row">1</property>
-                      <property name="row-span">1</property>
-                      <property name="column-span">1</property>
-                    </layout>
-                  </object>
-                </child>
+              <object class="AdwPasswordEntryRow" id="rcon_pw_entry">
+                <property name="title">Password</property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow" id="connection_test_row">
+                <property name="title">Connection Test</property>
+                <property name="subtitle-selectable">true</property>
+                <property name="activatable_widget">connection_test_button</property>
                 <child>
                   <object class="GtkButton" id="connection_test_button">
+                    <property name="valign">center</property>
                     <property name="label">Test</property>
-                    <layout>
-                      <property name="column">0</property>
-                      <property name="row">2</property>
-                      <property name="row-span">1</property>
-                      <property name="column-span">1</property>
-                    </layout>
                   </object>
                 </child>
-                <child>
-                  <object class="GtkLabel" id="connection_test_label">
-                    <property name="label">Test RCon Connection</property>
-                    <property name="halign">1</property>
-                    <layout>
-                      <property name="column">1</property>
-                      <property name="row">2</property>
-                      <property name="row-span">1</property>
-                      <property name="column-span">1</property>
-                    </layout>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkLabel">
-                    <property name="label">Check the ReadMe for additional setup instructions</property>
-                    <property name="selectable">true</property>
-                    <property name="halign">1</property>
-                    <property name="margin-top">10</property>
-                    <layout>
-                      <property name="column">0</property>
-                      <property name="row">3</property>
-                      <property name="row-span">1</property>
-                      <property name="column-span">2</property>
-                    </layout>
-                  </object>
-                </child>
-              </object>
-            </child>
-          </object>
-        </child>
-        <child>
-          <object class="GtkBox">
-            <property name="halign">2</property>
-            <property name="valign">2</property>
-            <property name="spacing">5</property>
-            <property name="homogeneous">true</property>
-            <child>
-              <object class="GtkButton">
-                <property name="label">Cancel</property>
-                <property name="action-name">window.close</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkButton" id="save_button">
-                <property name="label">Save</property>
               </object>
             </child>
           </object>
