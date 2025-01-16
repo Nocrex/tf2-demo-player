@@ -1,6 +1,5 @@
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
-use chrono::TimeZone;
 use gtk::glib::Object;
 use gtk::glib;
 

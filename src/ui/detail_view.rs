@@ -53,8 +53,8 @@ fn build_detail_tab() -> (ScrolledWindow, std::boxed::Box<dyn Fn(Option<&Demo>)>
     grid.attach(&server_entry, 1, 4, 1, 1);
 
     grid.attach(&Label::builder().label("Notes:").halign(gtk::Align::Start).build(), 0, 5, 1, 1);
-    let notes_area = TextView::builder().margin_end(10).margin_start(10).margin_top(10).margin_bottom(10).build();
-    grid.attach(&Frame::builder().child(&notes_area).vexpand(true).valign(gtk::Align::Fill).build(), 0, 6, 2, 1);
+    let notes_area = TextView::builder().build();
+    grid.attach(&notes_area, 0, 6, 2, 1);
     
     let scroller = ScrolledWindow::builder().child(&grid).hexpand(true).vexpand(true).build();
     (scroller, std::boxed::Box::new(clone!(@strong path => move |demo_o|{
@@ -89,7 +89,7 @@ fn build_detail_tab() -> (ScrolledWindow, std::boxed::Box<dyn Fn(Option<&Demo>)>
 fn build_event_tab<F: Fn(u32) + 'static>(activation_callback: F) -> (ScrolledWindow, std::boxed::Box<dyn Fn(Option<&Demo>) -> ()>){
     let model = gtk::gio::ListStore::new::<Object>();
 
-    let tps = Rc::new(Cell::new(66.667));
+    let tps: Rc<Cell<f32>> = Rc::new(Cell::new(Demo::TICKRATE));
 
     let factory = SignalListItemFactory::new();
     factory.connect_setup(clone!(@weak tps => move |_,li|{
@@ -127,9 +127,7 @@ fn build_event_tab<F: Fn(u32) + 'static>(activation_callback: F) -> (ScrolledWin
     (scroller, std::boxed::Box::new(clone!(@strong tps, @strong model => move |demo|{
         model.remove_all();
         if let Some(demo) = demo {
-            if let Some(header) = &demo.header {
-                tps.set(header.ticks as f32/header.duration);
-            }
+            tps.set(demo.tps().unwrap_or(Demo::TICKRATE));
             demo.events.iter().map(EventObject::new).for_each(|e|{
                 model.append(&e)
             });

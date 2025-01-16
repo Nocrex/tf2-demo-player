@@ -16,6 +16,12 @@ impl EventObject {
     }
 }
 
+impl Into<Event> for EventObject {
+    fn into(self) -> Event {
+        Event { tick: self.tick(), value: self.name(), name: self.bookmark_type() }
+    }
+}
+
 mod imp {
     use std::cell::RefCell;
     use std::cell::Cell;
