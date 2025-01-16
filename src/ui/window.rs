@@ -415,7 +415,7 @@ impl Window {
                     }
                     
                 }
-                wnd.update_demos();
+                wnd.refresh();
             }));
         }));
 
