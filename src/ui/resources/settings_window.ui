@@ -32,8 +32,8 @@
               </object>
             </child>
             <child>
-              <object class="AdwEntryRow" id="replay_folder_entry">
-                <property name="title">Replay folder</property>
+              <object class="AdwEntryRow" id="tf_folder_entry">
+                <property name="title">TF2 folder</property>
               </object>
             </child>
           </object>

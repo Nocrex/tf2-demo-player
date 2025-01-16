@@ -66,6 +66,10 @@ impl Demo {
         self.metadata = fs::metadata(&self.path).await.inspect_err(|e|log::warn!("Failed reading metadata for {}, {}", self.path.display(), e)).ok();
     }
 
+    pub async fn has_replay(&self, replays_folder: &Path) -> bool {
+        return replays_folder.join(&self.filename).exists().await;
+    }
+
     pub fn get_path(&self) -> String {
         self.path.display().to_string()
     }
@@ -103,33 +107,6 @@ impl Demo {
 
     pub fn tps(&self) -> Option<f32> {
         Some(self.header.as_ref()?.ticks as f32/self.header.as_ref()?.duration)
-    }
-    
-    pub async fn convert_to_replay(&mut self, replays_folder: &Path) -> io::Result<()> {
-        create_replay_index_file(replays_folder).await?;
-
-        let replay_demo_path = replays_folder.join(&self.filename);
-        fs::copy(&self.path, &replay_demo_path).await?;
-
-        let mut replay_handle: u32 = rand::thread_rng().gen();
-        while replays_folder.join(format!("replay_{replay_handle}.dmx")).exists().await {
-            replay_handle = rand::thread_rng().gen();
-        }
-
-        self.read_data().await;
-        let dmx_file_content = format!(
-"replay_{replay_handle}
-{{
-\t\"handle\"\t\"{replay_handle}\"
-\t\"map\"\t\"{1}\"
-\t\"complete\"\t\"1\"
-\t\"title\"\t\"{0}\"
-\t\"recon_filename\"\t\"{0}\"
-}}
-" , self.filename, self.header.as_ref().unwrap().map);
-        
-        fs::write(replays_folder.join(format!("replay_{replay_handle}.dmx")), dmx_file_content).await?;
-        Ok(())
     }
 }
 
@@ -207,5 +184,36 @@ impl DemoManager {
         for demo in unmarkeds {
             self.delete_demo(&demo).await;
         }
+    }
+
+    pub async fn convert_to_replay(&self, replays_folder: &Path, demo: &mut Demo) -> io::Result<()> {
+        create_replay_index_file(replays_folder).await?;
+
+        let replay_demo_path = replays_folder.join(&demo.filename);
+        fs::copy(&demo.path, &replay_demo_path).await?;
+
+        let mut replay_handle: u32 = rand::thread_rng().gen();
+        while replays_folder.join(format!("replay_{replay_handle}.dmx")).exists().await {
+            replay_handle = rand::thread_rng().gen();
+        }
+
+        demo.read_data().await;
+        let dmx_file_content = format!(
+"replay_{replay_handle}
+{{
+\t\"handle\"\t\"{replay_handle}\"
+\t\"map\"\t\"{1}\"
+\t\"complete\"\t\"1\"
+\t\"title\"\t\"{0}\"
+\t\"recon_filename\"\t\"{0}\"
+\t\"spawn_tick\"\t\"-1\"
+\t\"death_tick\"\t\"-1\"
+\t\"status\"\t\"3\"
+\t\"length\"\t\"{2}\"
+}}
+" , demo.filename, demo.header.as_ref().unwrap().map, demo.header.as_ref().unwrap().duration);
+        
+        fs::write(replays_folder.join(format!("replay_{replay_handle}.dmx")), dmx_file_content).await?;
+        Ok(())
     }
 }

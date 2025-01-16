@@ -58,6 +58,8 @@ mod imp {
         size: Cell<u64>,
         #[property(get, set)]
         created: Cell<i64>,
+        #[property(get, set)]
+        has_replay: Cell<bool>
     }
 
 

@@ -234,7 +234,7 @@ impl Window {
         }
     }
     
-    pub async fn notice_dialog(&self, title: &str, message: &str) {
+    async fn notice_dialog(&self, title: &str, message: &str) {
         let ad = adw::AlertDialog::builder().default_response("ok").close_response("ok").body(message).heading(title).build();
         ad.add_response("ok", "OK");
         ad.choose_future(self).await;
@@ -419,7 +419,18 @@ impl Window {
         
         self.imp().convert_to_replay_button.connect_clicked(clone!(@weak self as wnd => move |_|{
             glib::spawn_future_local(clone!(@weak wnd => async move {
-                match wnd.get_selected_demo().unwrap().convert_to_replay(async_std::path::Path::new(&wnd.settings().borrow().replay_folder_path)).await {
+                let mut demo = wnd.get_selected_demo().unwrap();
+                let tf_folder_path = async_std::path::PathBuf::from(&wnd.settings().borrow().tf_folder_path);
+                if !tf_folder_path.is_dir().await {
+                    wnd.notice_dialog("TF2 folder does not exist or cannot be accessed", "Please check your TF2 folder setting").await;
+                    return;
+                }
+                let replay_folder = tf_folder_path.join("replay").join("client").join("replays");
+                if demo.has_replay(&replay_folder).await {
+                    wnd.notice_dialog("Demo already converted", "").await;
+                    return;
+                }
+                match wnd.demo_manager().borrow().convert_to_replay(&replay_folder, &mut demo).await {
                     Ok(_) => wnd.notice_dialog("Replay created successfully", "").await,
                     Err(e) => wnd.notice_dialog("Failed to create replay", &e.to_string()).await,
                 };
