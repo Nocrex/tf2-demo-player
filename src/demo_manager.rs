@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::Metadata, path::{Path, PathBuf}};
 use bitbuffer::BitRead;
 use glob::glob;
 use serde::{Serialize, Deserialize};
-use tokio::fs;
+use async_std::{fs, task};
 use trash;
 
 #[derive(Serialize, Deserialize)]
@@ -140,7 +140,7 @@ impl DemoManager {
         let mut bookmark_path = demo.path.clone();
         bookmark_path.set_extension("json");
 
-        let _ = tokio::task::spawn_blocking(move ||{
+        let _ = task::spawn_blocking(move ||{
             if let Err(e) = trash::delete(demo.path.as_path()){
                 log::info!("Couldn't delete {}, {}", demo.path.display(), e);
             }

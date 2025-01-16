@@ -2,11 +2,11 @@
 <interface>
   <menu id="title-menu">
     <item>
-      <attribute name="label">Reload Folder</attribute>
-      <attribute name="action">app.reload</attribute>
+      <attribute name="label">Settings</attribute>
+      <attribute name="action">app.open-settings</attribute>
     </item>
     <item>
-      <attribute name="label">Delete unfinished demos</attribute>
+      <attribute name="label">Delete 0s demos</attribute>
       <attribute name="action">app.clean-unfinished</attribute>
     </item>
     <item>
@@ -43,16 +43,22 @@
             <property name="tooltip-text">Delete selected demo</property>
           </object>
         </child>
+        <child type="end">
+          <object class="GtkButton" id="reload_button">
+            <property name="icon-name">object-rotate-right-symbolic</property>
+            <property name="tooltip-text">Reload demo folder</property>
+          </object>
+        </child>
       </object>
     </child>
     <child>
       <object class="GtkPaned">
-        <property name="orientation">vertical</property>
+        <property name="orientation">1</property>
+        <property name="position">400</property>
         <child type="start">
           <object class="GtkScrolledWindow">
             <property name="has-frame">true</property>
-            <property name="hscrollbar-policy">never</property>
-            <property name="height-request">400</property>
+            <property name="hscrollbar-policy">2</property>
             <child>
               <object class="GtkColumnView" id="demo_list"></object>
             </child>
@@ -60,7 +66,7 @@
         </child>
         <child type="end">
           <object class="GtkBox">
-            <property name="orientation">vertical</property>
+            <property name="orientation">1</property>
             <property name="vexpand">true</property>
             <property name="hexpand">true</property>
             <child>
@@ -71,11 +77,11 @@
                 <property name="margin-bottom">5</property>
                 <child>
                   <object class="GtkScale" id="playbar">
-                    <property name="orientation">horizontal</property>
+                    <property name="orientation">0</property>
                     <property name="hexpand">true</property>
                     <property name="adjustment">
                       <object class="GtkAdjustment">
-                        <property name="step-increment">1.0</property>
+                        <property name="step-increment">1</property>
                       </object>
                     </property>
                     <layout>
@@ -88,9 +94,9 @@
                 </child>
                 <child>
                   <object class="GtkLabel" id="timestamp_label">
-                    <property name="halign">center</property>
-                    <property name="valign">start</property>
-                    <property name="justify">center</property>
+                    <property name="halign">3</property>
+                    <property name="valign">1</property>
+                    <property name="justify">2</property>
                     <property name="selectable">true</property>
                     <property name="label">00:00.00
 tick 0</property>
@@ -114,7 +120,7 @@ tick 0</property>
                     </layout>
                     <child type="start">
                       <object class="GtkBox" id="left_button_box">
-                        <property name="orientation">horizontal</property>
+                        <property name="orientation">0</property>
                         <property name="spacing">5</property>
                         <child>
                           <object class="GtkButton" id="play_button">
@@ -136,7 +142,7 @@ tick 0</property>
                         </child>
                         <child>
                           <object class="GtkSeparator">
-                            <property name="orientation">vertical</property>
+                            <property name="orientation">1</property>
                           </object>
                         </child>
                         <child>
@@ -155,7 +161,7 @@ tick 0</property>
                     </child>
                     <child type="end">
                       <object class="GtkBox" id="detail_edit">
-                        <property name="orientation">horizontal</property>
+                        <property name="orientation">0</property>
                         <property name="spacing">5</property>
                         <property name="sensitive">false</property>
                         <child>
@@ -179,7 +185,7 @@ tick 0</property>
             <child>
               <object class="GtkPaned" id="detail_box">
                 <property name="position">500</property>
-                <property name="orientation">horizontal</property>
+                <property name="orientation">0</property>
                 <child type="start">
                   <object class="GtkScrolledWindow">
                     <child>
@@ -196,7 +202,7 @@ tick 0</property>
                         <child>
                           <object class="GtkLabel">
                             <property name="label">Name:</property>
-                            <property name="halign">start</property>
+                            <property name="halign">1</property>
                             <layout>
                               <property name="column">0</property>
                               <property name="row">0</property>
@@ -207,8 +213,8 @@ tick 0</property>
                         </child>
                         <child>
                           <object class="GtkEntry" id="name_entry">
-                            <property name="halign">fill</property>
-                            <property name="valign">center</property>
+                            <property name="halign">0</property>
+                            <property name="valign">3</property>
                             <property name="hexpand">true</property>
                             <property name="editable">false</property>
                             <property name="secondary-icon-sensitive">true</property>
@@ -223,11 +229,10 @@ tick 0</property>
                             </layout>
                           </object>
                         </child>
-
                         <child>
                           <object class="GtkLabel">
                             <property name="label">Map:</property>
-                            <property name="halign">start</property>
+                            <property name="halign">1</property>
                             <layout>
                               <property name="column">0</property>
                               <property name="row">1</property>
@@ -238,8 +243,8 @@ tick 0</property>
                         </child>
                         <child>
                           <object class="GtkEntry" id="map_entry">
-                            <property name="halign">fill</property>
-                            <property name="valign">center</property>
+                            <property name="halign">0</property>
+                            <property name="valign">3</property>
                             <property name="hexpand">true</property>
                             <property name="editable">false</property>
                             <layout>
@@ -250,11 +255,10 @@ tick 0</property>
                             </layout>
                           </object>
                         </child>
-
                         <child>
                           <object class="GtkLabel">
                             <property name="label">Username:</property>
-                            <property name="halign">start</property>
+                            <property name="halign">1</property>
                             <layout>
                               <property name="column">0</property>
                               <property name="row">2</property>
@@ -265,8 +269,8 @@ tick 0</property>
                         </child>
                         <child>
                           <object class="GtkEntry" id="nick_entry">
-                            <property name="halign">fill</property>
-                            <property name="valign">center</property>
+                            <property name="halign">0</property>
+                            <property name="valign">3</property>
                             <property name="hexpand">true</property>
                             <property name="editable">false</property>
                             <layout>
@@ -277,11 +281,10 @@ tick 0</property>
                             </layout>
                           </object>
                         </child>
-
                         <child>
                           <object class="GtkLabel">
                             <property name="label">Duration:</property>
-                            <property name="halign">start</property>
+                            <property name="halign">1</property>
                             <layout>
                               <property name="column">0</property>
                               <property name="row">3</property>
@@ -292,8 +295,8 @@ tick 0</property>
                         </child>
                         <child>
                           <object class="GtkEntry" id="duration_entry">
-                            <property name="halign">fill</property>
-                            <property name="valign">center</property>
+                            <property name="halign">0</property>
+                            <property name="valign">3</property>
                             <property name="hexpand">true</property>
                             <property name="editable">false</property>
                             <layout>
@@ -304,11 +307,10 @@ tick 0</property>
                             </layout>
                           </object>
                         </child>
-
                         <child>
                           <object class="GtkLabel">
                             <property name="label">Server:</property>
-                            <property name="halign">start</property>
+                            <property name="halign">1</property>
                             <layout>
                               <property name="column">0</property>
                               <property name="row">4</property>
@@ -319,8 +321,8 @@ tick 0</property>
                         </child>
                         <child>
                           <object class="GtkEntry" id="server_entry">
-                            <property name="halign">fill</property>
-                            <property name="valign">center</property>
+                            <property name="halign">0</property>
+                            <property name="valign">3</property>
                             <property name="hexpand">true</property>
                             <property name="editable">false</property>
                             <layout>
@@ -331,11 +333,10 @@ tick 0</property>
                             </layout>
                           </object>
                         </child>
-
                         <child>
                           <object class="GtkLabel">
                             <property name="label">Notes:</property>
-                            <property name="halign">start</property>
+                            <property name="halign">1</property>
                             <layout>
                               <property name="column">0</property>
                               <property name="row">5</property>
