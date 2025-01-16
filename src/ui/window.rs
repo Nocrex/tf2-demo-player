@@ -3,6 +3,7 @@ use relm4::actions::RelmAction;
 use relm4::actions::RelmActionGroup;
 use relm4::prelude::*;
 
+use crate::demo_manager::Event;
 use crate::ui::demo_list::*;
 use crate::ui::info_pane::InfoPaneMsg;
 use crate::ui::settings_window::*;
@@ -17,7 +18,8 @@ use super::info_pane::InfoPaneModel;
 #[derive(Debug)]
 pub enum RconAction {
     Play(String),
-    Goto(u32),
+    GotoTick(u32),
+    GotoEvent(Demo, usize),
     Stop,
 }
 
@@ -258,8 +260,17 @@ impl AsyncComponent for DemoPlayerModel {
                         let demo = self.demo_manager.get_demo(&name).unwrap();
                         let _ = self.rcon_manager.play_demo(demo).await; // TODO: HANDLE AND OUTPUT
                     }
-                    RconAction::Goto(tick) => {
+                    RconAction::GotoTick(tick) => {
                         let _ = self.rcon_manager.skip_to_tick(tick, true).await;
+                    }
+                    RconAction::GotoEvent(dem, ev) => {
+                        let ev = &dem.events[ev];
+                        let _ = self.rcon_manager.skip_to_tick(
+                            (ev.tick
+                                - (self.settings.event_skip_predelay * dem.tps()).round() as u32)
+                                .clamp(0, dem.header.map_or(0, |h| h.ticks)),
+                            true,
+                        );
                     }
                     RconAction::Stop => {
                         let _ = self.rcon_manager.stop_playback().await;

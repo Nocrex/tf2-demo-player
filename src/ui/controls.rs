@@ -40,14 +40,14 @@ pub struct ControlsModel {
     dirty: bool,
     demo: Option<Demo>,
     playhead_time: f64,
-    playhead: gtk::Scale,
 }
 
 #[relm4::component(pub)]
-impl SimpleComponent for ControlsModel {
+impl Component for ControlsModel {
     type Init = ();
     type Input = ControlsMsg;
     type Output = ControlsOut;
+    type CommandOutput = ();
 
     view! {
         gtk::Grid {
@@ -197,23 +197,28 @@ impl SimpleComponent for ControlsModel {
         root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let mut model = ControlsModel::default();
+        let model = ControlsModel::default();
 
         let widgets = view_output!();
-
-        model.playhead = widgets.playhead.clone();
 
         ComponentParts { model, widgets }
     }
 
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+    fn update_with_view(
+        &mut self,
+        widgets: &mut Self::Widgets,
+        message: Self::Input,
+        sender: ComponentSender<Self>,
+        root: &Self::Root,
+    ) {
         match message {
             ControlsMsg::PlayheadMoved(val) => self.playhead_time = val,
             ControlsMsg::SetDemo(dem) => {
                 self.playhead_time = 0.0;
-                self.playhead.clear_marks();
+                widgets.playhead.clear_marks();
                 for event in dem.as_ref().map_or(&vec![], |d| &d.events) {
-                    self.playhead
+                    widgets
+                        .playhead
                         .add_mark(event.tick as f64, gtk::PositionType::Bottom, None);
                 }
                 self.demo = dem;
@@ -224,7 +229,7 @@ impl SimpleComponent for ControlsModel {
                 )));
             }
             ControlsMsg::GotoPlayhead => {
-                let _ = sender.output(ControlsOut::Rcon(RconAction::Goto(
+                let _ = sender.output(ControlsOut::Rcon(RconAction::GotoTick(
                     self.playhead_time as u32,
                 )));
             }
@@ -240,7 +245,7 @@ impl SimpleComponent for ControlsModel {
                         .unwrap_or(Demo::TICKRATE) as f64;
                 self.playhead_time = self
                     .playhead_time
-                    .clamp(0.0, self.playhead.adjustment().upper());
+                    .clamp(0.0, widgets.playhead.adjustment().upper());
             }
             ControlsMsg::SeekForward => {
                 self.playhead_time += 30.0
@@ -251,7 +256,7 @@ impl SimpleComponent for ControlsModel {
                         .unwrap_or(Demo::TICKRATE) as f64;
                 self.playhead_time = self
                     .playhead_time
-                    .clamp(0.0, self.playhead.adjustment().upper());
+                    .clamp(0.0, widgets.playhead.adjustment().upper());
             }
             ControlsMsg::ConvertReplay => {
                 let _ = sender.output(ControlsOut::ConvertReplay(
@@ -273,5 +278,6 @@ impl SimpleComponent for ControlsModel {
             }
             ControlsMsg::SetDirty => self.dirty = true,
         }
+        self.update_view(widgets, sender);
     }
 }

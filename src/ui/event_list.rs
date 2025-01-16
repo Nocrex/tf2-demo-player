@@ -63,12 +63,10 @@ impl SimpleComponent for EventListModel {
 
                             let time_label = gtk::Label::builder().halign(gtk::Align::End).justify(gtk::Justification::Right).margin_end(20).margin_start(20).build();
                             list_item.property_expression("item").chain_closure_with_callback(move |v|{
-                                if ! v[1].is::<EventObject>(){
-                                    return "".to_owned();
+                                match v[1].get::<EventObject>(){
+                                    Ok(evob) => format!("{} ({})", crate::util::sec_to_timestamp(evob.time()), evob.tick()),
+                                    Err(_) => "".to_owned(),
                                 }
-
-                                let evob: EventObject = v[1].get().unwrap();
-                                format!("{} ({})", crate::util::sec_to_timestamp(evob.time()), evob.tick())
                             }).bind(&time_label, "label", gtk::Widget::NONE);
 
                             let cbox = gtk::CenterBox::builder().start_widget(&start_box).center_widget(&type_label).end_widget(&time_label).hexpand(true).height_request(40).build();

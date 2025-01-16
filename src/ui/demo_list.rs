@@ -16,7 +16,6 @@ use crate::ui::demo_object::DemoObject;
 pub struct DemoListModel {
     list_model: gio::ListStore,
     list_selection: gtk::MultiSelection,
-    scroll_window: gtk::ScrolledWindow,
 }
 
 #[derive(Debug)]
@@ -53,10 +52,11 @@ impl DemoListModel {
 }
 
 #[relm4::component(pub)]
-impl SimpleComponent for DemoListModel {
+impl Component for DemoListModel {
     type Init = ();
     type Input = DemoListMsg;
     type Output = DemoListOut;
+    type CommandOutput = ();
 
     view! {
         gtk::ScrolledWindow{
@@ -82,10 +82,9 @@ impl SimpleComponent for DemoListModel {
         let liststore = gio::ListStore::new::<DemoObject>();
         let sorted_model = gtk::SortListModel::builder().model(&liststore).build();
 
-        let mut model = DemoListModel {
+        let model = DemoListModel {
             list_model: liststore.clone(),
             list_selection: gtk::MultiSelection::new(None::<gio::ListStore>),
-            scroll_window: root.clone(),
         };
 
         model.list_selection.set_model(Some(&sorted_model));
@@ -311,7 +310,7 @@ impl SimpleComponent for DemoListModel {
         ComponentParts { model, widgets }
     }
 
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, root: &Self::Root) {
         match message {
             DemoListMsg::Update(demos, scroll) => {
                 let model_set: HashSet<(String, u64), RandomState> =
@@ -341,7 +340,7 @@ impl SimpleComponent for DemoListModel {
                 }
 
                 if scroll {
-                    self.scroll_window.vadjustment().set_value(0.0);
+                    root.vadjustment().set_value(0.0);
                 }
             }
             DemoListMsg::SelectionChanged => {
