@@ -1,6 +1,6 @@
 use chrono::{Datelike, Timelike};
 use tf_demo_parser::demo::header::Header;
-use std::{collections::HashMap, fs::Metadata, time::SystemTime};
+use std::{collections::HashMap, fs::Metadata, rc::Rc, time::SystemTime};
 use bitbuffer::BitRead;
 use glob::glob;
 use serde::{Serialize, Deserialize};
@@ -30,6 +30,7 @@ pub struct Demo {
     pub events: Vec<Event>,
     pub notes: Option<String>,
     pub metadata: Option<Metadata>,
+    pub match_data: Option<Rc<tf_demo_parser::MatchState>>,
 }
 
 impl Demo {
@@ -42,6 +43,7 @@ impl Demo {
             events: Vec::new(),
             notes: None,
             metadata: None,
+            match_data: None,
         }
     }
 
@@ -65,6 +67,16 @@ impl Demo {
         }
 
         self.metadata = fs::metadata(&self.path).await.inspect_err(|e|log::warn!("Failed reading metadata for {}, {}", self.path.display(), e)).ok();
+    }
+
+    pub async fn full_analysis(&mut self) -> Result<(), Box<dyn std::error::Error>>{
+        let f = fs::read(&self.path).await?;
+        let demo = tf_demo_parser::Demo::new(&f);
+        let parser = tf_demo_parser::DemoParser::new(demo.get_stream());
+
+        let (_, state) = parser.parse()?;
+        self.match_data = Some(Rc::new(state));
+        Ok(())
     }
 
     pub async fn has_replay(&self, replays_folder: &Path) -> bool {
