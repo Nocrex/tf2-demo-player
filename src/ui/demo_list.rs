@@ -2,15 +2,16 @@ use std::time::Duration;
 
 use chrono::TimeZone;
 use gtk::gio::ListStore;
-use gtk::{prelude::*, ColumnView, ColumnViewColumn, Expression, Label, ListItem, NumericSorter, PropertyExpression, ScrolledWindow, SignalListItemFactory, SingleSelection, SortListModel, StringSorter, Widget};
+use gtk::{prelude::*, ColumnView, ColumnViewColumn, Expression, Label, ListItem, MultiSelection, NumericSorter, PropertyExpression, ScrolledWindow, SignalListItemFactory, SingleSelection, SortListModel, StringSorter, Widget};
 
 use super::DemoObject;
 
-pub fn build_demo_list() -> (ScrolledWindow, SingleSelection){
+pub fn build_demo_list() -> (ScrolledWindow, MultiSelection){
     let demo_model = ListStore::new::<DemoObject>();
     let sorted_model = SortListModel::builder().model(&demo_model).build();
 
-    let selection = SingleSelection::builder().model(&sorted_model).build();
+    let selection = MultiSelection::new(None::<ListStore>);
+    selection.set_model(Some(&sorted_model));
 
     let demo_list = ColumnView::builder()
         .vexpand(true)

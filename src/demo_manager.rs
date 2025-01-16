@@ -1,5 +1,5 @@
 use tf_demo_parser::demo::header::Header;
-use std::{fs::Metadata, path::{Path, PathBuf}};
+use std::{collections::HashMap, fs::Metadata, path::{Path, PathBuf}};
 use bitbuffer::BitRead;
 use glob::glob;
 use serde::{Serialize, Deserialize};
@@ -83,7 +83,7 @@ impl Demo {
 
 #[derive(Default)]
 pub struct DemoManager {
-    demos: Vec<Demo>,
+    demos: HashMap<String, Demo>,
 }
 
 impl DemoManager {
@@ -94,18 +94,24 @@ impl DemoManager {
     pub async fn load_demos(&mut self, folder_path: &String){
         self.demos.clear();
         for path in glob(&format!("{}/*.dem",folder_path)).unwrap() {
-            self.demos.push(Demo::new(path.unwrap().as_path()));
+            let d = Demo::new(path.unwrap().as_path());
+            self.demos.insert(d.filename.to_owned(), d);
         }
-        for demo in &mut self.demos {
+        for demo in &mut self.demos.values_mut() {
             demo.read_data().await;
         }
     }
 
-    pub fn get_demos(&self) -> &Vec<Demo> {
+    pub fn get_demo(&self, name: &str) -> Option<&Demo> {
+        self.demos.get(name)
+    }
+
+    pub fn get_demos(&self) -> &HashMap<String, Demo> {
         &self.demos
     }
 
-    pub async fn delete_demo(&mut self, demo: &Demo){
+    pub async fn delete_demo(&mut self, name: &str){
+        let demo = self.demos.get(name).unwrap().to_owned();
         if let Err(e) = fs::remove_file(demo.path.as_path()).await{
             log::info!("Couldn't delete {}, {}", demo.path.display(), e);
         }
@@ -117,6 +123,6 @@ impl DemoManager {
             log::info!("Couldn't delete {}, {}", bookmark_path.display(), e);
         }
 
-        self.demos.retain(|d|d.filename != demo.filename);
+        self.demos.remove(&demo.filename);
     }
 }

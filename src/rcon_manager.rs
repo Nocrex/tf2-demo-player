@@ -11,6 +11,7 @@ pub enum Command<'a> {
     DemoDebug(bool),
     PausePlayback(),
     ResumePlayback(),
+    TogglePlayback(),
     SetPlaybackSpeed(f32),
     /* StartRecording(&'a str, Codec), */
 }
@@ -26,6 +27,7 @@ impl Command<'_> {
             Command::PausePlayback() => "demo_pause".to_owned(),
             Command::ResumePlayback() => "demo_resume".to_owned(),
             Command::SetPlaybackSpeed(s) => format!("demo_timescale {:.2}", s),
+            Command::TogglePlayback() => "demo_togglepause".to_owned(),
             /* Command::StartRecording(name, codec) => format!("startmovie \"{}\" {}", name, codec.params()), */
         }
     }
