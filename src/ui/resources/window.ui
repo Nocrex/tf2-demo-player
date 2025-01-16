@@ -87,7 +87,7 @@
                           </object>
                         </property>
                         <layout>
-                          <property name="column">0</property>
+                          <property name="column">1</property>
                           <property name="row">0</property>
                           <property name="row-span">1</property>
                           <property name="column-span">1</property>
@@ -99,13 +99,33 @@
                         <property name="halign">3</property>
                         <property name="valign">1</property>
                         <property name="justify">2</property>
+                        <property name="width-request">60</property>
                         <property name="selectable">true</property>
-                        <property name="label">00:00.00
-    tick 0</property>
+                        <property name="label">00:00
+0</property>
                         <property name="margin-top">10</property>
                         <property name="margin-bottom">10</property>
                         <layout>
-                          <property name="column">1</property>
+                          <property name="column">0</property>
+                          <property name="row">0</property>
+                          <property name="row-span">1</property>
+                          <property name="column-span">1</property>
+                        </layout>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="duration_label">
+                        <property name="halign">3</property>
+                        <property name="valign">1</property>
+                        <property name="justify">2</property>
+                        <property name="width-request">60</property>
+                        <property name="selectable">true</property>
+                        <property name="label">00:00
+0 ticks</property>
+                        <property name="margin-top">10</property>
+                        <property name="margin-bottom">10</property>
+                        <layout>
+                          <property name="column">2</property>
                           <property name="row">0</property>
                           <property name="row-span">1</property>
                           <property name="column-span">1</property>
@@ -118,7 +138,7 @@
                           <property name="column">0</property>
                           <property name="row">1</property>
                           <property name="row-span">1</property>
-                          <property name="column-span">2</property>
+                          <property name="column-span">3</property>
                         </layout>
                         <child type="start">
                           <object class="GtkBox" id="left_button_box">
@@ -363,10 +383,36 @@
                       </object>
                     </child>
                     <child type="end">
-                      <object class="GtkScrolledWindow">
-                        <child>
-                          <object class="GtkListView" id="event_list">
-                            <property name="show-separators">true</property>
+                      <object class="AdwToolbarView">
+                        <property name="content">
+                          <object class="GtkScrolledWindow">
+                            <child>
+                              <object class="GtkListView" id="event_list">
+                                <property name="show-separators">true</property>
+                              </object>
+                            </child>
+                          </object>
+                        </property>
+                        <child type="bottom">
+                          <object class="GtkActionBar">
+                            <child type="start">
+                              <object class="GtkButton" id="event_add">
+                                <property name="icon-name">list-add-symbolic</property>
+                                <property name="tooltip-text">Add new event</property>
+                              </object>
+                            </child>
+                            <child type="start">
+                              <object class="GtkButton" id="event_remove">
+                                <property name="icon-name">list-remove-symbolic</property>
+                                <property name="tooltip-text">Remove selected event</property>
+                              </object>
+                            </child>
+                            <child type="start">
+                              <object class="GtkButton" id="event_edit">
+                                <property name="icon-name">edit-symbolic</property>
+                                <property name="tooltip-text">Edit selected event</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>

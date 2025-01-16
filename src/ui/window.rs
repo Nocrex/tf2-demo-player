@@ -1,12 +1,12 @@
 use std::{cell::RefCell, collections::HashSet, hash::RandomState, rc::Rc};
 
 use glib::Object;
-use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, AlertDialog, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NoSelection, NumericSorter, SortListModel};
+use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NumericSorter, SingleSelection, SortListModel};
 use adw::{prelude::*, Application};
 
-use crate::{demo_manager::{Demo, DemoManager}, rcon_manager::RconManager, settings::Settings, util::{sec_to_timestamp, ticks_to_sec}};
+use crate::{demo_manager::{Demo, DemoManager, Event}, rcon_manager::RconManager, settings::Settings, util::{sec_to_timestamp, ticks_to_sec}};
 
-use super::{demo_object::DemoObject, event_object::EventObject, settings_window::SettingsWindow};
+use super::{demo_object::DemoObject, event_dialog::EventDialog, event_object::EventObject, settings_window::SettingsWindow};
 
 use std::time::Duration;
 
@@ -26,7 +26,7 @@ mod imp {
 
     use adw::subclass::application_window::AdwApplicationWindowImpl;
     use glib::subclass::InitializingObject;
-    use gtk::{gio, Box, Button, ColumnView, Entry, Label, ListView, MultiSelection, Paned, Scale, TextView};
+    use gtk::{gio, Box, Button, ColumnView, Entry, Label, ListView, MultiSelection, Paned, Scale, SingleSelection, TextView};
     use gtk::subclass::prelude::*;
     use gtk::{glib, CompositeTemplate};
 
@@ -57,6 +57,8 @@ mod imp {
         pub playbar: TemplateChild<Scale>,
         #[template_child]
         pub timestamp_label: TemplateChild<Label>,
+        #[template_child]
+        pub duration_label: TemplateChild<Label>,
 
         #[template_child]
         pub left_button_box: TemplateChild<Box>,
@@ -96,7 +98,14 @@ mod imp {
 
         #[template_child]
         pub event_list: TemplateChild<ListView>,
+        pub event_selection: RefCell<Option<SingleSelection>>,
         pub event_model: RefCell<Option<gio::ListStore>>,
+        #[template_child]
+        pub event_add: TemplateChild<Button>,
+        #[template_child]
+        pub event_remove: TemplateChild<Button>,
+        #[template_child]
+        pub event_edit: TemplateChild<Button>,
     }
     
     #[glib::object_subclass]
@@ -146,6 +155,7 @@ impl Window {
         }
         obj.refresh();
         obj.register_actions();
+        obj.open_settings_on_first_launch();
         obj
     }
 
@@ -206,6 +216,10 @@ impl Window {
         self.imp().event_model.borrow().clone().unwrap()
     }
 
+    fn update_event_selection(&self) {
+        self.imp().event_selection.borrow().clone().unwrap().emit_by_name::<()>("selection-changed", &[&0u32.to_value(),&0u32.to_value()]);
+    }
+
     async fn delete_dialog(&self) -> bool {
         let ad = adw::AlertDialog::builder().default_response("cancel").close_response("cancel").body("Deleting selected demos!").heading("Are you sure?").build();
         ad.add_response("cancel", "Cancel");
@@ -262,23 +276,29 @@ impl Window {
     fn update_detail_view(&self){
         self.event_model().remove_all();
         if let Some(demo) = self.get_selected_demo(){
-            demo.events.iter().map(EventObject::new).for_each(|e|{
+            demo.events.iter().map(EventObject::from).for_each(|e|{
                 self.event_model().append(&e)
             });
             self.imp().name_entry.buffer().set_text(&demo.filename);
             self.imp().name_entry.set_icon_activatable(gtk::EntryIconPosition::Secondary, true);
             self.imp().notes_area.buffer().set_text(demo.notes.to_owned().unwrap_or_default().as_str());
             self.imp().detail_box.set_sensitive(true);
+            self.imp().event_add.set_sensitive(true);
+            self.update_event_selection();
             if let Some(header) = &demo.header {
                 self.imp().map_entry.buffer().set_text(&header.map);
                 self.imp().nick_entry.buffer().set_text(&header.nick);
                 self.imp().duration_entry.buffer().set_text(format!("{} ({} ticks | {:.3} tps)", crate::util::sec_to_timestamp(header.duration), header.ticks, header.ticks as f32/header.duration).as_str());
                 self.imp().server_entry.buffer().set_text(&header.server);
+
+                self.imp().duration_label.set_label(&format!("{}\n{}",crate::util::sec_to_timestamp(header.duration), header.ticks));
             }else{
                 self.imp().map_entry.buffer().set_text("");
                 self.imp().nick_entry.buffer().set_text("");
                 self.imp().duration_entry.buffer().set_text("");
                 self.imp().server_entry.buffer().set_text("");
+                
+                self.imp().duration_label.set_label("00:00\n0");
             }
         }else{
             self.imp().name_entry.buffer().set_text("");
@@ -289,6 +309,12 @@ impl Window {
             self.imp().name_entry.set_icon_activatable(gtk::EntryIconPosition::Secondary, false);
             self.imp().notes_area.buffer().set_text("");
             self.imp().detail_box.set_sensitive(false);
+
+            self.imp().event_remove.set_sensitive(false);
+            self.imp().event_edit.set_sensitive(false);
+            self.imp().event_add.set_sensitive(false);
+
+            self.imp().duration_label.set_label("00:00\n0");
         }
     }
 
@@ -341,7 +367,7 @@ impl Window {
         self.imp().playbar.connect_value_changed(clone!(@weak self as wnd => move |ph|{
             let tps = wnd.get_selected_demo().unwrap().tps().unwrap_or(Demo::TICKRATE);
             let secs = ticks_to_sec(ph.value() as u32, tps);
-            wnd.imp().timestamp_label.set_label(format!("{}\ntick {}", sec_to_timestamp(secs).as_str(), ph.value() as u32).as_str());
+            wnd.imp().timestamp_label.set_label(format!("{}\n{}", sec_to_timestamp(secs).as_str(), ph.value() as u32).as_str());
         }));
 
         self.imp().play_button.connect_clicked(clone!(@weak self as wnd => move |b| {
@@ -389,11 +415,46 @@ impl Window {
                 let buf = wnd.imp().notes_area.buffer();
                 let mut demo = wnd.get_selected_demo().unwrap();
                 demo.notes = Some(buf.text(&buf.start_iter(), &buf.end_iter(), true).to_string());
+                demo.events.clear();
+                wnd.imp().event_model.borrow().clone().unwrap().into_iter().map(|e|{
+                    let ev: Event = e.unwrap().downcast_ref::<EventObject>().unwrap().into();
+                    ev
+                }).for_each(|e|demo.events.push(e));
                 demo.save_json().await;
                 wnd.demo_manager().borrow_mut().get_demos_mut().insert(demo.filename.clone(), demo);
                 b.set_sensitive(true);
                 wnd.refresh();
             }));
+        }));
+
+        self.imp().event_remove.connect_clicked(clone!(@weak self as wnd => move|_|{
+            let idx = wnd.imp().event_selection.borrow().clone().unwrap().selected();
+            wnd.imp().event_model.borrow().clone().unwrap().remove(idx);
+            wnd.update_event_selection();
+            wnd.imp().detail_edit.set_sensitive(true);
+        }));
+
+        self.imp().event_add.connect_clicked(clone!(@weak self as wnd => move|_|{
+            let length = wnd.get_selected_demo().unwrap().header.map_or(u32::MAX, |h|h.ticks);
+            EventDialog::new(&wnd, "Add event", &EventObject::new("", "Bookmark", wnd.imp().playbar.value() as u32), length)
+                .callback(clone!(@weak wnd => move |name, bookmark_type, tick|{
+                    wnd.event_model().append(&EventObject::new(name, bookmark_type, tick));
+                })).show();
+            wnd.imp().detail_edit.set_sensitive(true);
+        }));
+
+        self.imp().event_edit.connect_clicked(clone!(@weak self as wnd => move|_|{
+            let length = wnd.get_selected_demo().unwrap().header.map_or(u32::MAX, |h|h.ticks);
+            let ev = wnd.imp().event_selection.borrow().clone().unwrap().selected_item();
+            EventDialog::new(&wnd, "Edit event", ev.and_downcast_ref::<EventObject>().unwrap(), length)
+            .callback(clone!(@weak wnd => move |name, bookmark_type, tick|{
+                let evobj = wnd.imp().event_selection.borrow().clone().unwrap().selected_item();
+                let ev = evobj.and_downcast_ref::<EventObject>().unwrap();
+                ev.set_name(name);
+                ev.set_bookmark_type(bookmark_type);
+                ev.set_tick(tick);
+            })).show();
+            wnd.imp().detail_edit.set_sensitive(true);
         }));
     }
 
@@ -419,18 +480,28 @@ impl Window {
             list_item.property_expression("item").chain_property::<EventObject>("tick").chain_closure_with_callback(move |v|{
                 let tick: u32 = v[1].get().unwrap();
                 let secs = crate::util::ticks_to_sec(tick, wnd.get_selected_demo().unwrap().tps().unwrap_or(Demo::TICKRATE));
-                crate::util::sec_to_timestamp(secs)
+                format!("{} ({})", crate::util::sec_to_timestamp(secs), tick)
             }).bind(&time_label, "label", Widget::NONE);
 
             let cbox = CenterBox::builder().start_widget(&name_label).center_widget(&type_label).end_widget(&time_label).hexpand(true).height_request(40).build();
             list_item.set_child(Some(&cbox));
         }));
 
-        let sel = NoSelection::new(None::<gio::ListModel>);
-        sel.set_model(Some(&self.event_model()));
-
+        let sorted = SortListModel::builder().model(&self.event_model()).sorter(&NumericSorter::builder().expression(&PropertyExpression::new(EventObject::static_type(), None::<Expression>, "tick")).build()).build();
+        let sel = SingleSelection::builder().model(&sorted).build();
         self.imp().event_list.set_model(Some(&sel));
+        self.imp().event_selection.replace(Some(sel));
         self.imp().event_list.set_factory(Some(&factory));
+
+        self.imp().event_selection.borrow().clone().unwrap().connect_selection_changed(clone!(@weak self as wnd => move |s,_,_|{
+            if s.selected_item().is_some(){
+                wnd.imp().event_edit.set_sensitive(true);
+                wnd.imp().event_remove.set_sensitive(true);
+            }else{
+                wnd.imp().event_edit.set_sensitive(false);
+                wnd.imp().event_remove.set_sensitive(false);
+            }
+        }));
 
         self.imp().event_list.connect_activate(clone!(@weak self as wnd => move |_,i|{
             let evob = wnd.event_model().item(i).unwrap().downcast::<EventObject>().unwrap();
@@ -623,5 +694,11 @@ impl Window {
             }
             wnd.imp().detail_edit.set_sensitive(false);
         }));
+    }
+
+    pub fn open_settings_on_first_launch(&self){
+        if self.settings().borrow().first_launch {
+            SettingsWindow::new(&self).show();
+        }
     }
 }

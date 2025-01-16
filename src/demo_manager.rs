@@ -9,6 +9,7 @@ use trash;
 #[derive(Serialize, Deserialize)]
 struct EventContainer {
     events: Vec<Event>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     notes: Option<String>,
 }
 
@@ -84,8 +85,11 @@ impl Demo {
             return;
         }
 
+        let mut events = self.events.clone();
+        events.sort_by_key(|e|e.tick);
+
         let container = EventContainer{
-            events: self.events.clone(),
+            events: events,
             notes: notes,
         };
         let json = serde_json::to_string_pretty(&container).unwrap();

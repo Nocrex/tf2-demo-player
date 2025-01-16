@@ -1,8 +1,6 @@
 use adw::prelude::*;
 use gtk::{glib, glib::*};
-use gtk::prelude::*;
 use gtk::Button;
-use gtk::PasswordEntry;
 use crate::rcon_manager::RconManager;
 use crate::ui::Window;
 use gtk_macros::get_widget;

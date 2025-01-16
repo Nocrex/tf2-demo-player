@@ -8,15 +8,22 @@ glib::wrapper!{
 }
 
 impl EventObject {
-    pub fn new(event: &Event) -> Self {
+    pub fn from(event: &Event) -> Self {
         Object::builder()
             .property("name", &event.value)
             .property("tick", event.tick)
             .property("bookmark-type", &event.name).build()
     }
+
+    pub fn new(name: &str, bookmark_type: &str, tick: u32) -> Self {
+        Object::builder()
+            .property("name", name)
+            .property("tick", tick)
+            .property("bookmark-type", bookmark_type).build()
+    }
 }
 
-impl Into<Event> for EventObject {
+impl Into<Event> for &EventObject {
     fn into(self) -> Event {
         Event { tick: self.tick(), value: self.name(), name: self.bookmark_type() }
     }
