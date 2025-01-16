@@ -18,7 +18,7 @@ pub enum ControlsOut {
 }
 
 #[derive(Debug)]
-pub enum ControlsMsg{
+pub enum ControlsMsg {
     SetDemo(Option<Demo>),
     SetDirty,
 
@@ -30,14 +30,13 @@ pub enum ControlsMsg{
     SeekBackward,
     ConvertReplay,
     InspectDemo,
-    
+
     SaveChanges,
     DiscardChanges,
-
 }
 
 #[derive(Default)]
-pub struct ControlsModel{
+pub struct ControlsModel {
     dirty: bool,
     demo: Option<Demo>,
     playhead_time: f64,
@@ -50,7 +49,7 @@ impl SimpleComponent for ControlsModel {
     type Input = ControlsMsg;
     type Output = ControlsOut;
 
-    view!{
+    view! {
         gtk::Grid {
             set_column_homogeneous: false,
             set_margin_end: 5,
@@ -73,7 +72,7 @@ impl SimpleComponent for ControlsModel {
                     set_upper?: model.demo.as_ref().and_then(|d|d.header.as_ref()).map(|h|h.ticks.into()),
                 }
             },
-            
+
             attach[0,0,1,1] = &gtk::Label {
                 set_halign: gtk::Align::Center,
                 set_valign: gtk::Align::Start,
@@ -83,12 +82,12 @@ impl SimpleComponent for ControlsModel {
                 set_margin_top: 10,
                 set_margin_bottom: 10,
                 #[watch]
-                set_label: &format!("{}\n{}", 
+                set_label: &format!("{}\n{}",
                     sec_to_timestamp(
                         ticks_to_sec(
-                            model.playhead_time as u32, 
+                            model.playhead_time as u32,
                             model.demo.as_ref().map(|d|d.tps()).unwrap_or(Demo::TICKRATE)
-                        )), 
+                        )),
                     model.playhead_time as u64),
             },
 
@@ -175,7 +174,7 @@ impl SimpleComponent for ControlsModel {
                     set_spacing: 5,
                     #[watch]
                     set_sensitive: model.dirty,
-                    
+
                     gtk::Button{
                         set_icon_name: "edit-clear-all-symbolic",
                         set_tooltip_text: Some("Discard changes"),
@@ -194,61 +193,84 @@ impl SimpleComponent for ControlsModel {
     }
 
     fn init(
-            _: Self::Init,
-            root: Self::Root,
-            sender: ComponentSender<Self>,
-        ) -> ComponentParts<Self> {
+        _: Self::Init,
+        root: Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
         let mut model = ControlsModel::default();
 
         let widgets = view_output!();
 
         model.playhead = widgets.playhead.clone();
 
-        ComponentParts{model, widgets}
+        ComponentParts { model, widgets }
     }
-    
+
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
             ControlsMsg::PlayheadMoved(val) => self.playhead_time = val,
             ControlsMsg::SetDemo(dem) => {
                 self.playhead_time = 0.0;
                 self.playhead.clear_marks();
-                for event in dem.as_ref().map_or(&vec![], |d|&d.events) {
-                    self.playhead.add_mark(event.tick as f64, gtk::PositionType::Bottom, None);
+                for event in dem.as_ref().map_or(&vec![], |d| &d.events) {
+                    self.playhead
+                        .add_mark(event.tick as f64, gtk::PositionType::Bottom, None);
                 }
                 self.demo = dem;
-            },
+            }
             ControlsMsg::Play => {
-                let _ = sender.output(ControlsOut::Rcon(RconAction::Play(self.demo.as_ref().unwrap().filename.clone())));
-            },
+                let _ = sender.output(ControlsOut::Rcon(RconAction::Play(
+                    self.demo.as_ref().unwrap().filename.clone(),
+                )));
+            }
             ControlsMsg::GotoPlayhead => {
-                let _ = sender.output(ControlsOut::Rcon(RconAction::Goto(self.playhead_time as u32)));
-            },
+                let _ = sender.output(ControlsOut::Rcon(RconAction::Goto(
+                    self.playhead_time as u32,
+                )));
+            }
             ControlsMsg::Stop => {
                 let _ = sender.output(ControlsOut::Rcon(RconAction::Stop));
-            },
+            }
             ControlsMsg::SeekBackward => {
-                self.playhead_time -= 30.0 * self.demo.as_ref().map(|d|d.tps()).unwrap_or(Demo::TICKRATE) as f64;
-                self.playhead_time = self.playhead_time.clamp(0.0, self.playhead.adjustment().upper());
-            },
+                self.playhead_time -= 30.0
+                    * self
+                        .demo
+                        .as_ref()
+                        .map(|d| d.tps())
+                        .unwrap_or(Demo::TICKRATE) as f64;
+                self.playhead_time = self
+                    .playhead_time
+                    .clamp(0.0, self.playhead.adjustment().upper());
+            }
             ControlsMsg::SeekForward => {
-                self.playhead_time += 30.0 * self.demo.as_ref().map(|d|d.tps()).unwrap_or(Demo::TICKRATE) as f64;
-                self.playhead_time = self.playhead_time.clamp(0.0, self.playhead.adjustment().upper());
-            },
+                self.playhead_time += 30.0
+                    * self
+                        .demo
+                        .as_ref()
+                        .map(|d| d.tps())
+                        .unwrap_or(Demo::TICKRATE) as f64;
+                self.playhead_time = self
+                    .playhead_time
+                    .clamp(0.0, self.playhead.adjustment().upper());
+            }
             ControlsMsg::ConvertReplay => {
-                let _ = sender.output(ControlsOut::ConvertReplay(self.demo.as_ref().unwrap().filename.clone()));
-            },
+                let _ = sender.output(ControlsOut::ConvertReplay(
+                    self.demo.as_ref().unwrap().filename.clone(),
+                ));
+            }
             ControlsMsg::InspectDemo => {
-                let _ = sender.output(ControlsOut::Inspect(self.demo.as_ref().unwrap().filename.clone()));
-            },
+                let _ = sender.output(ControlsOut::Inspect(
+                    self.demo.as_ref().unwrap().filename.clone(),
+                ));
+            }
             ControlsMsg::DiscardChanges => {
                 let _ = sender.output(ControlsOut::DiscardChanges);
                 self.dirty = false;
-            },
+            }
             ControlsMsg::SaveChanges => {
                 let _ = sender.output(ControlsOut::SaveChanges);
                 self.dirty = false;
-            },
+            }
             ControlsMsg::SetDirty => self.dirty = true,
         }
     }

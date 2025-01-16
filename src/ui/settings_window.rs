@@ -1,6 +1,6 @@
 use adw::prelude::*;
-use gtk::prelude::*;
 use gtk::glib;
+use gtk::prelude::*;
 use relm4::prelude::*;
 
 use crate::{rcon_manager::RconManager, settings::Settings};
@@ -22,7 +22,7 @@ pub enum PreferencesOut {
     Save(Settings),
 }
 
-pub struct PreferencesModel{
+pub struct PreferencesModel {
     settings: Settings,
     connection_test_msg: String,
     connection_test_active: bool,
@@ -36,13 +36,13 @@ pub enum PreferencesCmd {
 }
 
 #[relm4::component(pub)]
-impl Component for PreferencesModel{
+impl Component for PreferencesModel {
     type Init = Settings;
     type Input = PreferencesMsg;
     type Output = PreferencesOut;
     type CommandOutput = PreferencesCmd;
 
-    view!{
+    view! {
         adw::PreferencesWindow{
             set_modal: true,
             set_search_enabled: false,
@@ -58,7 +58,7 @@ impl Component for PreferencesModel{
 
                 adw::PreferencesGroup {
                     set_title: "General",
-               
+
                     adw::SwitchRow {
                         set_title: "Doubleclick to play demo",
                         set_active: model.settings.doubleclick_play,
@@ -119,21 +119,20 @@ impl Component for PreferencesModel{
                             set_sensitive: !model.connection_test_active,
                             connect_clicked[sender, pw = model.settings.rcon_pw.clone()] => move |_|{
                                 sender.input(PreferencesMsg::ConnectionTest(pw.clone()))
-                            } 
+                            }
                         }
                     }
                 }
             },
         }
     }
-    
+
     fn init(
-            settings: Self::Init,
-            root: Self::Root,
-            sender: ComponentSender<Self>,
-        ) -> ComponentParts<Self> {
-        
-        let model = PreferencesModel{
+        settings: Self::Init,
+        root: Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
+        let model = PreferencesModel {
             settings,
             connection_test_msg: "".to_owned(),
             connection_test_active: false,
@@ -141,55 +140,55 @@ impl Component for PreferencesModel{
         };
 
         let widgets = view_output!();
-        
-        ComponentParts{model, widgets}
+
+        ComponentParts { model, widgets }
     }
-    
+
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, root: &Self::Root) {
-       match message {
-            PreferencesMsg::ConnectionTest(pw) => {
-                sender.oneshot_command(async move {
-                    let mut manager = RconManager::new(pw);
-                    let res = manager.connect().await;
-                    PreferencesCmd::ConnectionTestResult(match res {
-                        Ok(_) => "Connection Successful!".to_owned(),
-                        Err(e) => match e {
-                            rcon::Error::Auth => "Authorization failed, probably incorrect password".to_owned(),
-                            rcon::Error::CommandTooLong => "Command too long?".to_owned(),
-                            rcon::Error::Io(e) => format!("Connection error: {:?}",e)
+        match message {
+            PreferencesMsg::ConnectionTest(pw) => sender.oneshot_command(async move {
+                let mut manager = RconManager::new(pw);
+                let res = manager.connect().await;
+                PreferencesCmd::ConnectionTestResult(match res {
+                    Ok(_) => "Connection Successful!".to_owned(),
+                    Err(e) => match e {
+                        rcon::Error::Auth => {
+                            "Authorization failed, probably incorrect password".to_owned()
                         }
-                    })
+                        rcon::Error::CommandTooLong => "Command too long?".to_owned(),
+                        rcon::Error::Io(e) => format!("Connection error: {:?}", e),
+                    },
                 })
-            },
+            }),
             PreferencesMsg::Show => {
                 self.connection_test_msg = "".to_owned();
                 root.present();
-            },
+            }
             PreferencesMsg::Close => {
                 self.settings.save();
                 let _ = sender.output(PreferencesOut::Save(self.settings.clone()));
-            },
+            }
             PreferencesMsg::DoubleclickPlay(p) => self.settings.doubleclick_play = p,
             PreferencesMsg::EventSkipOffset(off) => self.settings.event_skip_predelay = off as f32,
             PreferencesMsg::RConPassword(pass) => self.settings.rcon_pw = pass,
             PreferencesMsg::TF2FolderPath(path) => {
                 self.tf_path_valid = std::path::PathBuf::from(path.clone()).join("tf").is_dir();
                 self.settings.tf_folder_path = path;
-            },
-       } 
+            }
+        }
     }
-    
+
     fn update_cmd(
-            &mut self,
-            message: Self::CommandOutput,
-            _: ComponentSender<Self>,
-            _: &Self::Root,
-        ) {
+        &mut self,
+        message: Self::CommandOutput,
+        _: ComponentSender<Self>,
+        _: &Self::Root,
+    ) {
         match message {
             PreferencesCmd::ConnectionTestResult(msg) => {
                 self.connection_test_msg = msg;
                 self.connection_test_active = false;
-            },
+            }
         }
     }
 }

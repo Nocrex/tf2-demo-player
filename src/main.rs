@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 mod demo_manager;
-mod settings;
 mod rcon_manager;
+mod settings;
 
 mod util;
 

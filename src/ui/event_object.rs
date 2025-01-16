@@ -1,10 +1,10 @@
-use relm4::prelude::*;
-use gtk::glib::Object;
 use gtk::glib;
+use gtk::glib::Object;
+use relm4::prelude::*;
 
 use crate::demo_manager::Event;
 
-glib::wrapper!{
+glib::wrapper! {
     pub struct EventObject(ObjectSubclass<imp::EventObject>);
 }
 
@@ -30,33 +30,36 @@ impl EventObject {
 
 impl Into<Event> for EventObject {
     fn into(self) -> Event {
-        Event { tick: self.tick(), value: self.name(), name: self.bookmark_type() }
+        Event {
+            tick: self.tick(),
+            value: self.name(),
+            name: self.bookmark_type(),
+        }
     }
 }
 
 mod imp {
-    use std::cell::RefCell;
     use std::cell::Cell;
+    use std::cell::RefCell;
 
-    use relm4::prelude::*;
     use glib::Properties;
     use gtk::glib;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
+    use relm4::prelude::*;
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::EventObject)]
     pub struct EventObject {
         #[property(get, set)]
         name: RefCell<String>,
-        #[property(get,set)]
+        #[property(get, set)]
         tick: Cell<u32>,
-        #[property(get,set)]
+        #[property(get, set)]
         bookmark_type: RefCell<String>,
         #[property[get,set]]
         time: Cell<f32>,
     }
-
 
     #[glib::object_subclass]
     impl ObjectSubclass for EventObject {

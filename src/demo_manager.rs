@@ -1,12 +1,16 @@
-use chrono::{Datelike, Timelike};
-use tf_demo_parser::demo::header::Header;
-use std::{collections::HashMap, fs::Metadata, rc::Rc, time::SystemTime};
+use async_std::{
+    fs, io,
+    path::{Path, PathBuf},
+    task,
+};
 use bitbuffer::BitRead;
+use chrono::{Datelike, Timelike};
 use glob::glob;
-use serde::{Serialize, Deserialize};
-use async_std::{fs, io, path::{Path, PathBuf}, task};
-use trash;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, fs::Metadata, rc::Rc, time::SystemTime};
+use tf_demo_parser::demo::header::Header;
+use trash;
 
 #[derive(Serialize, Deserialize)]
 struct EventContainer {
@@ -35,7 +39,7 @@ pub struct Demo {
 impl Demo {
     pub const TICKRATE: f32 = 66.667;
     pub fn new(path: &Path) -> Self {
-        Demo{
+        Demo {
             path: path.into(),
             filename: path.file_name().unwrap().to_str().unwrap().into(),
             header: None,
@@ -53,23 +57,28 @@ impl Demo {
             let f = fs::read(&self.path).await.unwrap();
 
             let demo = tf_demo_parser::Demo::new(&f);
-            self.header = Header::read(&mut demo.get_stream()).map_or(None, |r|Some(r));
+            self.header = Header::read(&mut demo.get_stream()).map_or(None, |r| Some(r));
         }
 
         let mut bookmark_file = self.path.clone();
         bookmark_file.set_extension("json");
 
         let file = fs::read(bookmark_file).await;
-        if let Ok(char_bytes) = file{
+        if let Ok(char_bytes) = file {
             let parsed: EventContainer = serde_json::from_slice(&char_bytes).unwrap();
             self.events = parsed.events;
             self.notes = parsed.notes;
         }
 
-        self.metadata = fs::metadata(&self.path).await.inspect_err(|e|log::warn!("Failed reading metadata for {}, {}", self.path.display(), e)).ok();
+        self.metadata = fs::metadata(&self.path)
+            .await
+            .inspect_err(|e| {
+                log::warn!("Failed reading metadata for {}, {}", self.path.display(), e)
+            })
+            .ok();
     }
 
-    pub async fn full_analysis(&mut self) -> Result<(), Box<dyn std::error::Error>>{
+    pub async fn full_analysis(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let f = fs::read(&self.path).await?;
         let demo = tf_demo_parser::Demo::new(&f);
         let parser = tf_demo_parser::DemoParser::new(demo.get_stream());
@@ -98,54 +107,77 @@ impl Demo {
             }
         }
         if notes.is_none() && self.events.is_empty() {
-            let _ = fs::remove_file(&bookmark_file).await
-            .inspect_err(|e|log::info!("Couldn't delete bookmark file {}, {}", bookmark_file.display(), e));
+            let _ = fs::remove_file(&bookmark_file).await.inspect_err(|e| {
+                log::info!(
+                    "Couldn't delete bookmark file {}, {}",
+                    bookmark_file.display(),
+                    e
+                )
+            });
             return;
         }
 
         let mut events = self.events.clone();
-        events.sort_by_key(|e|e.tick);
+        events.sort_by_key(|e| e.tick);
 
-        let container = EventContainer{
+        let container = EventContainer {
             events: events,
             notes: notes,
         };
         let json = serde_json::to_string_pretty(&container).unwrap();
 
-        
-
-        let _ = fs::write(&bookmark_file, json).await
-            .inspect_err(|e|log::warn!("Couldn't save bookmark file {}, {}", bookmark_file.display(), e));
+        let _ = fs::write(&bookmark_file, json).await.inspect_err(|e| {
+            log::warn!(
+                "Couldn't save bookmark file {}, {}",
+                bookmark_file.display(),
+                e
+            )
+        });
     }
 
     pub fn tps(&self) -> f32 {
-        self.header.as_ref().map(|h|h.ticks as f32 / h.duration).unwrap_or(Demo::TICKRATE)
+        self.header
+            .as_ref()
+            .map(|h| h.ticks as f32 / h.duration)
+            .unwrap_or(Demo::TICKRATE)
     }
 
-    pub async fn convert_to_replay(&mut self, replays_folder: &Path, title: &str) -> io::Result<()> {
+    pub async fn convert_to_replay(
+        &mut self,
+        replays_folder: &Path,
+        title: &str,
+    ) -> io::Result<()> {
         create_replay_index_file(replays_folder).await?;
 
         let replay_demo_path = replays_folder.join(&self.filename);
         fs::copy(&self.path, &replay_demo_path).await?;
 
         let mut replay_handle: u32 = rand::thread_rng().gen();
-        while replays_folder.join(format!("replay_{replay_handle}.dmx")).exists().await {
+        while replays_folder
+            .join(format!("replay_{replay_handle}.dmx"))
+            .exists()
+            .await
+        {
             replay_handle = rand::thread_rng().gen();
         }
 
         let create_date: chrono::DateTime<chrono::Local> = chrono::DateTime::from(
-            self.metadata.as_ref()
-            .map(|m|m.created().ok())
-            .map_or(None, |d|d)
-            .unwrap_or(SystemTime::now())
+            self.metadata
+                .as_ref()
+                .map(|m| m.created().ok())
+                .map_or(None, |d| d)
+                .unwrap_or(SystemTime::now()),
         );
 
-        let kv_date = (create_date.day() - 1) | ((create_date.month() - 1) << 5) | ((create_date.year() as u32 - 2009) << 9);
-        let kv_time = create_date.hour() | (create_date.minute() << 5) | (create_date.second() << 11);
+        let kv_date = (create_date.day() - 1)
+            | ((create_date.month() - 1) << 5)
+            | ((create_date.year() as u32 - 2009) << 9);
+        let kv_time =
+            create_date.hour() | (create_date.minute() << 5) | (create_date.second() << 11);
 
         self.read_data().await;
         let dmx_file_content = format!(
-"replay_{replay_handle}
+            "replay_{replay_handle}
 {{
 \t\"handle\"\t\"{replay_handle}\"
 \t\"map\"\t\"{0}\"
@@ -162,15 +194,22 @@ impl Demo {
 \t\t\"time\"\t\"{kv_time}\"
 \t}}
 }}
-" , self.header.as_ref().unwrap().map, self.filename , self.header.as_ref().unwrap().duration);
-        
-        fs::write(replays_folder.join(format!("replay_{replay_handle}.dmx")), dmx_file_content).await?;
+",
+            self.header.as_ref().unwrap().map,
+            self.filename,
+            self.header.as_ref().unwrap().duration
+        );
+
+        fs::write(
+            replays_folder.join(format!("replay_{replay_handle}.dmx")),
+            dmx_file_content,
+        )
+        .await?;
         Ok(())
     }
 }
 
-
-async fn create_replay_index_file(replay_folder: &Path) -> io::Result<()>{
+async fn create_replay_index_file(replay_folder: &Path) -> io::Result<()> {
     let index_path = replay_folder.join("replays.dmx");
     if !index_path.exists().await {
         fs::write(index_path, "\"root\"\n{\n\t\"version\"\t\"0\"\n}").await?;
@@ -188,9 +227,9 @@ impl DemoManager {
         DemoManager::default()
     }
 
-    pub async fn load_demos(&mut self, folder_path: &str){
+    pub async fn load_demos(&mut self, folder_path: &str) {
         self.demos.clear();
-        for path in glob(&format!("{}/*.dem",folder_path)).unwrap() {
+        for path in glob(&format!("{}/*.dem", folder_path)).unwrap() {
             let d = Demo::new(Path::new(path.unwrap().to_str().unwrap()));
             self.demos.insert(d.filename.to_owned(), d);
         }
@@ -211,36 +250,45 @@ impl DemoManager {
         &mut self.demos
     }
 
-    pub async fn delete_demo(&mut self, name: &str){
+    pub async fn delete_demo(&mut self, name: &str) {
         let demo = self.demos.remove(name).unwrap();
 
         let mut bookmark_path = demo.path.clone();
         bookmark_path.set_extension("json");
 
-        let _ = task::spawn_blocking(move ||{
-            if let Err(e) = trash::delete(demo.path.as_path()){
+        let _ = task::spawn_blocking(move || {
+            if let Err(e) = trash::delete(demo.path.as_path()) {
                 log::info!("Couldn't delete {}, {}", demo.path.display(), e);
             }
 
-            if let Err(e) = trash::delete(bookmark_path.as_path()){
+            if let Err(e) = trash::delete(bookmark_path.as_path()) {
                 log::info!("Couldn't delete {}, {}", bookmark_path.display(), e);
             }
-
-        }).await;
+        })
+        .await;
     }
 
     pub async fn delete_empty_demos(&mut self) {
-        let empties: Vec<String> = self.demos.values().filter(|d|d.header.as_ref().map_or(true, |h|h.duration < 0.5)).map(|d|d.filename.clone()).collect();
+        let empties: Vec<String> = self
+            .demos
+            .values()
+            .filter(|d| d.header.as_ref().map_or(true, |h| h.duration < 0.5))
+            .map(|d| d.filename.clone())
+            .collect();
         for demo in empties {
             self.delete_demo(&demo).await;
         }
     }
 
     pub async fn delete_unmarked_demos(&mut self) {
-        let unmarkeds: Vec<String> = self.demos.values().filter(|d|d.events.is_empty()).map(|d|d.filename.clone()).collect();
+        let unmarkeds: Vec<String> = self
+            .demos
+            .values()
+            .filter(|d| d.events.is_empty())
+            .map(|d| d.filename.clone())
+            .collect();
         for demo in unmarkeds {
             self.delete_demo(&demo).await;
         }
     }
-
 }

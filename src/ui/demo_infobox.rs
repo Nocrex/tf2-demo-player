@@ -1,6 +1,6 @@
 use adw::prelude::*;
-use gtk::prelude::*;
 use gtk::glib;
+use gtk::prelude::*;
 use relm4::prelude::*;
 
 use crate::demo_manager::Demo;
@@ -29,7 +29,7 @@ impl SimpleComponent for DemoInfoboxModel {
     type Input = DemoInfoboxMsg;
     type Output = DemoInfoboxOut;
 
-    view!{
+    view! {
         gtk::ScrolledWindow{
             gtk::Grid{
                 set_width_request: 400,
@@ -41,12 +41,12 @@ impl SimpleComponent for DemoInfoboxModel {
                 set_margin_end: 10,
                 set_margin_top: 10,
                 set_margin_bottom: 10,
-                
+
                 attach[0,0,1,1] = &gtk::Label{
                     set_label: "Name:",
                     set_halign: gtk::Align::Start,
                 },
-                
+
                 attach[1,0,1,1] = &gtk::Entry{
                     set_halign: gtk::Align::Fill,
                     set_valign: gtk::Align::Center,
@@ -68,7 +68,7 @@ impl SimpleComponent for DemoInfoboxModel {
                     set_label: "Map:",
                     set_halign: gtk::Align::Start,
                 },
-                
+
                 attach[1,1,1,1] = &gtk::Entry{
                     set_halign: gtk::Align::Fill,
                     set_valign: gtk::Align::Center,
@@ -82,7 +82,7 @@ impl SimpleComponent for DemoInfoboxModel {
                     set_label: "Username:",
                     set_halign: gtk::Align::Start,
                 },
-                
+
                 attach[1,2,1,1] = &gtk::Entry{
                     set_halign: gtk::Align::Fill,
                     set_valign: gtk::Align::Center,
@@ -96,7 +96,7 @@ impl SimpleComponent for DemoInfoboxModel {
                     set_label: "Duration:",
                     set_halign: gtk::Align::Start,
                 },
-                
+
                 attach[1,3,1,1] = &gtk::Entry{
                     set_halign: gtk::Align::Fill,
                     set_valign: gtk::Align::Center,
@@ -104,9 +104,9 @@ impl SimpleComponent for DemoInfoboxModel {
                     set_editable: false,
                     #[watch]
                     set_text: &model.demo.as_ref().and_then(|d|d.header.as_ref()).map_or("".to_owned(), |header|
-                        format!("{} ({} ticks | {:.3} tps)", 
-                            crate::util::sec_to_timestamp(header.duration), 
-                            header.ticks, 
+                        format!("{} ({} ticks | {:.3} tps)",
+                            crate::util::sec_to_timestamp(header.duration),
+                            header.ticks,
                             header.ticks as f32/header.duration
                         )),
                 },
@@ -115,7 +115,7 @@ impl SimpleComponent for DemoInfoboxModel {
                     set_label: "Server:",
                     set_halign: gtk::Align::Start,
                 },
-                
+
                 attach[1,4,1,1] = &gtk::Entry{
                     set_halign: gtk::Align::Fill,
                     set_valign: gtk::Align::Center,
@@ -129,7 +129,7 @@ impl SimpleComponent for DemoInfoboxModel {
                     set_label: "Notes:",
                     set_halign: gtk::Align::Start,
                 },
-                
+
                 #[name="notes"]
                 attach[0,6,2,1] = &gtk::TextView{
                     set_vexpand: true,
@@ -137,13 +137,13 @@ impl SimpleComponent for DemoInfoboxModel {
             }
         }
     }
-    
+
     fn init(
-            _: Self::Init,
-            root: Self::Root,
-            sender: ComponentSender<Self>,
-        ) -> ComponentParts<Self> {
-        let mut model = DemoInfoboxModel{
+        _: Self::Init,
+        root: Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
+        let mut model = DemoInfoboxModel {
             demo: None,
             notes: gtk::TextView::new(),
         };
@@ -152,42 +152,45 @@ impl SimpleComponent for DemoInfoboxModel {
 
         model.notes = widgets.notes.clone();
 
-
         let notes_sender = sender.clone();
-        model.notes.buffer().connect_changed(move |buf|{
-            notes_sender.input(DemoInfoboxMsg::NotesChanged(buf.text(&buf.start_iter(), &buf.end_iter(), true).to_string()));
+        model.notes.buffer().connect_changed(move |buf| {
+            notes_sender.input(DemoInfoboxMsg::NotesChanged(
+                buf.text(&buf.start_iter(), &buf.end_iter(), true)
+                    .to_string(),
+            ));
         });
 
-        ComponentParts{model, widgets}
+        ComponentParts { model, widgets }
     }
 
-    fn update(
-            &mut self,
-            message: Self::Input,
-            sender: ComponentSender<Self>,
-        ) {
+    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
             DemoInfoboxMsg::Display(demo) => {
                 self.demo = demo;
-                self.notes.buffer().set_text(self.demo.as_ref().and_then(|d|d.notes.as_ref()).unwrap_or(&"".to_owned()))
-            },
+                self.notes.buffer().set_text(
+                    self.demo
+                        .as_ref()
+                        .and_then(|d| d.notes.as_ref())
+                        .unwrap_or(&"".to_owned()),
+                )
+            }
             DemoInfoboxMsg::NotesChanged(notes) => {
                 let new_notes: Option<String>;
 
                 if notes.is_empty() {
                     new_notes = None;
-                }else{
+                } else {
                     new_notes = Some(notes);
                 }
 
-                if new_notes.as_ref() != self.demo.as_ref().and_then(|d|d.notes.as_ref()){
+                if new_notes.as_ref() != self.demo.as_ref().and_then(|d| d.notes.as_ref()) {
                     self.demo.as_mut().unwrap().notes = new_notes;
                     let _ = sender.output(DemoInfoboxOut::Dirty(self.demo.clone().unwrap()));
                 }
-            },
+            }
             DemoInfoboxMsg::OpenFolder => {
                 let path = self.demo.as_ref().unwrap().path.as_path();
-                let _ = opener::reveal(path).inspect_err(|e|log::warn!("{}", e));
+                let _ = opener::reveal(path).inspect_err(|e| log::warn!("{}", e));
             }
         }
     }
