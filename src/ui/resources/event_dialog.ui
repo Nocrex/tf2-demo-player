@@ -22,11 +22,11 @@
             <child>
               <object class="AdwSpinRow" id="tick_row">
                 <property name="title">Tick</property>
-                  <property name="adjustment">
-                    <object class="GtkAdjustment">
+                <property name="adjustment">
+                  <object class="GtkAdjustment">
                     <property name="page-increment">10</property>
                     <property name="step-increment">1</property>
-                    </object>
+                  </object>
                 </property>
               </object>
             </child>

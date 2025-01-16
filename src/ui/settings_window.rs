@@ -37,14 +37,17 @@ impl SettingsWindow {
 
     fn insert_settings(&self){
         get_widget!(self.builder, adw::PasswordEntryRow, rcon_pw_entry);
+        get_widget!(self.builder, adw::SpinRow, event_predelay_entry);
         let settings = self.parent.settings();
         rcon_pw_entry.set_text(&settings.borrow().rcon_pw);
+        event_predelay_entry.set_value(settings.borrow().event_skip_predelay.into());
     }
 
     fn connect_callbacks(&self){
         get_widget!(self.builder, adw::PasswordEntryRow, rcon_pw_entry);
         get_widget!(self.builder, Button, connection_test_button);
         get_widget!(self.builder, adw::ActionRow, connection_test_row);
+        get_widget!(self.builder, adw::SpinRow, event_predelay_entry);
         connection_test_button.connect_clicked(clone!(@weak connection_test_row, @weak rcon_pw_entry => move |b| {
             glib::spawn_future_local(clone!(@weak connection_test_row, @weak rcon_pw_entry, @weak b => async move {
                 b.set_sensitive(false);
@@ -63,10 +66,12 @@ impl SettingsWindow {
             }));
         }));
 
-        self.widget.connect_destroy(clone!(@weak self.parent as wnd, @weak rcon_pw_entry => move |_|{
+        self.widget.connect_destroy(clone!(@weak self.parent as wnd, @weak rcon_pw_entry, @weak event_predelay_entry => move |_|{
             let settings = wnd.settings();
             settings.borrow_mut().rcon_pw = rcon_pw_entry.text().to_string();
+            settings.borrow_mut().event_skip_predelay = event_predelay_entry.value() as f32;
             settings.borrow().save();
+
             let rcon = wnd.rcon_manager();
             rcon.replace(RconManager::new(settings.borrow().rcon_pw.clone()));
         }));

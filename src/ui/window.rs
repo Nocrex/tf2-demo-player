@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashSet, hash::RandomState, rc::Rc};
 
 use glib::Object;
-use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NumericSorter, SingleSelection, SortListModel};
+use gtk::{gio::{self, SimpleAction}, glib::{self, clone, subclass::types::ObjectSubclassIsExt}, prelude::*, Button, CenterBox, ColumnViewColumn, FileDialog, MultiSelection, NumericSorter, SingleSelection, SortListModel};
 use adw::{prelude::*, Application};
 
 use crate::{demo_manager::{Demo, DemoManager, Event}, rcon_manager::RconManager, settings::Settings, util::{sec_to_timestamp, ticks_to_sec}};
@@ -241,6 +241,10 @@ impl Window {
         let dem_name = model.item(selected.nth(0)).and_downcast_ref::<DemoObject>().unwrap().name();
         Some(self.demo_manager().borrow().get_demo(&dem_name).unwrap().clone()) //TODO: return reference somehow
     }
+
+    fn get_current_tps(&self) -> f32 {
+        return self.get_selected_demo().and_then(|d|d.tps()).map_or(Demo::TICKRATE, |t|t);
+    }
     
     fn get_all_selected_demos(&self) -> Vec<String> {
         let selected = self.selection().selection();
@@ -365,7 +369,7 @@ impl Window {
         self.imp().playbar.set_range(0.0, 100.0);
 
         self.imp().playbar.connect_value_changed(clone!(@weak self as wnd => move |ph|{
-            let tps = wnd.get_selected_demo().unwrap().tps().unwrap_or(Demo::TICKRATE);
+            let tps = wnd.get_current_tps();
             let secs = ticks_to_sec(ph.value() as u32, tps);
             wnd.imp().timestamp_label.set_label(format!("{}\n{}", sec_to_timestamp(secs).as_str(), ph.value() as u32).as_str());
         }));
@@ -396,17 +400,19 @@ impl Window {
         }));
 
         self.imp().skip_backward_button.connect_clicked(clone!(@weak self as wnd => move |_|{
-            let tps = wnd.get_selected_demo().unwrap().tps().unwrap_or(Demo::TICKRATE);
+            let tps = wnd.get_current_tps();
             wnd.imp().playbar.set_value(wnd.imp().playbar.value() - 30.0*tps as f64);
         }));
 
         self.imp().skip_forward_button.connect_clicked(clone!(@weak self as wnd => move |_|{
-            let tps = wnd.get_selected_demo().unwrap().tps().unwrap_or(Demo::TICKRATE);
+            let tps = wnd.get_current_tps();
             wnd.imp().playbar.set_value(wnd.imp().playbar.value() + 30.0*tps as f64);
         }));
 
         self.imp().detail_edit_cancel.connect_clicked(clone!(@weak self as wnd => move |_|{
+            let val = wnd.imp().playbar.value();
             wnd.refresh();
+            wnd.imp().playbar.set_value(val);
         }));
 
         self.imp().detail_edit_save.connect_clicked(clone!(@weak self as wnd => move |b|{
@@ -423,7 +429,9 @@ impl Window {
                 demo.save_json().await;
                 wnd.demo_manager().borrow_mut().get_demos_mut().insert(demo.filename.clone(), demo);
                 b.set_sensitive(true);
+                let val = wnd.imp().playbar.value();
                 wnd.refresh();
+                wnd.imp().playbar.set_value(val);
             }));
         }));
 
@@ -470,8 +478,26 @@ impl Window {
         factory.connect_setup(clone!(@weak self as wnd => move |_,li|{
             let list_item = li.downcast_ref::<ListItem>().unwrap();
 
-            let name_label = Label::builder().halign(gtk::Align::Start).margin_start(20).margin_end(20).build();
+            let name_label = Label::builder().halign(gtk::Align::Start).build();
             list_item.property_expression("item").chain_property::<EventObject>("name").bind(&name_label, "label", Widget::NONE);
+
+            let seek_button = Button::builder().icon_name("find-location-symbolic").vexpand(false).valign(gtk::Align::Center).build();
+            seek_button.connect_clicked(clone!(@weak wnd, @strong list_item => move |_|{
+                glib::spawn_future_local(clone!(@weak wnd, @weak list_item => async move {
+                    let offset = (wnd.get_current_tps() * wnd.settings().borrow().event_skip_predelay) as u32;
+                    let mut tick = list_item.property::<EventObject>("item").tick();
+                    if offset > tick {
+                        tick = 0;
+                    } else {
+                        tick -= offset;
+                    }
+                    let _ = wnd.rcon_manager().borrow_mut().skip_to_tick(tick, false).await;
+                }));
+            }));
+
+            let start_box = gtk::Box::builder().orientation(gtk::Orientation::Horizontal).spacing(10).margin_start(10).margin_end(20).build();
+            start_box.append(&seek_button);
+            start_box.append(&name_label);
 
             let type_label = Label::builder().halign(gtk::Align::Center).justify(gtk::Justification::Center).build();
             list_item.property_expression("item").chain_property::<EventObject>("bookmark-type").bind(&type_label, "label", Widget::NONE);
@@ -483,7 +509,7 @@ impl Window {
                 format!("{} ({})", crate::util::sec_to_timestamp(secs), tick)
             }).bind(&time_label, "label", Widget::NONE);
 
-            let cbox = CenterBox::builder().start_widget(&name_label).center_widget(&type_label).end_widget(&time_label).hexpand(true).height_request(40).build();
+            let cbox = CenterBox::builder().start_widget(&start_box).center_widget(&type_label).end_widget(&time_label).hexpand(true).height_request(40).build();
             list_item.set_child(Some(&cbox));
         }));
 
