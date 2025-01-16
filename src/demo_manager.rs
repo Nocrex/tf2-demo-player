@@ -153,4 +153,18 @@ impl DemoManager {
         
         self.demos.remove(&demo.filename);
     }
+
+    pub async fn delete_empty_demos(&mut self) {
+        let empties: Vec<String> = self.demos.values().filter(|d|d.header.as_ref().map_or(true, |h|h.duration < 0.5)).map(|d|d.filename.clone()).collect();
+        for demo in empties {
+            self.delete_demo(&demo).await;
+        }
+    }
+
+    pub async fn delete_unmarked_demos(&mut self) {
+        let unmarkeds: Vec<String> = self.demos.values().filter(|d|d.events.is_empty()).map(|d|d.filename.clone()).collect();
+        for demo in unmarkeds {
+            self.delete_demo(&demo).await;
+        }
+    }
 }
