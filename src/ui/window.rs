@@ -39,6 +39,7 @@ pub enum DemoPlayerMsg {
     DeleteSelected,
     DeleteUnfinished,
     DeleteUnmarked,
+    CleanReplays,
 
     OpenFolder(String, bool),
     SelectFolder,
@@ -56,6 +57,7 @@ relm4::new_action_group!(AppMenu, "app-menu");
 relm4::new_stateless_action!(OpenSettingsAction, AppMenu, "open-settings");
 relm4::new_stateless_action!(DeleteUnfinishedAction, AppMenu, "clean-unfinished");
 relm4::new_stateless_action!(DeleteUnmarkedAction, AppMenu, "clean-unmarked");
+relm4::new_stateless_action!(CleanReplaysAction, AppMenu, "clean-replays");
 
 relm4::new_stateful_action!(OpenFolderAction, AppMenu, "open-folder", String, ());
 relm4::new_stateless_action!(ShowAboutAction, AppMenu, "show-about");
@@ -153,6 +155,7 @@ impl AsyncComponent for DemoPlayerModel {
             "Settings" => OpenSettingsAction,
             "Delete 0s demos" => DeleteUnfinishedAction,
             "Delete demos without bookmarks" => DeleteUnmarkedAction,
+            "Clean replays" => CleanReplaysAction,
             "About" => ShowAboutAction,
         }
     }
@@ -217,6 +220,13 @@ impl AsyncComponent for DemoPlayerModel {
                 });
             group.add_action(delete_unmarked_action);
 
+            let clean_replays_sender = sender.clone();
+            let clean_replays_action: RelmAction<CleanReplaysAction> =
+                RelmAction::new_stateless(move |_| {
+                    clean_replays_sender.input(DemoPlayerMsg::CleanReplays);
+                });
+            group.add_action(clean_replays_action);
+
             let open_folder_sender = sender.clone();
             let open_folder_action: RelmAction<OpenFolderAction> =
                 RelmAction::new_with_target_value(move |_, val| {
@@ -260,6 +270,33 @@ impl AsyncComponent for DemoPlayerModel {
             DemoPlayerMsg::DeleteUnmarked => {
                 self.demo_manager.delete_unmarked_demos().await;
                 sender.input(DemoPlayerMsg::DemosChanged(false));
+            }
+            DemoPlayerMsg::CleanReplays => {
+                let obsoletes =
+                    crate::util::find_obsolete_replays(self.settings.borrow().replays_folder())
+                        .await;
+                if let Err(e) = obsoletes {
+                    ui_util::notice_dialog(root, "Error while loading replays", &e).await;
+                } else if let Ok(obsolete_dmx_files) = obsoletes {
+                    if obsolete_dmx_files.is_empty() {
+                        ui_util::notice_dialog(root, "No replays to clean", "").await;
+                    } else {
+                        if ui_util::delete_dialog(root, obsolete_dmx_files.len()).await {
+                            let res = async_std::task::spawn_blocking(|| {
+                                trash::delete_all(obsolete_dmx_files)
+                            })
+                            .await;
+                            if let Err(e) = res {
+                                ui_util::notice_dialog(
+                                    root,
+                                    "Error cleaning demos",
+                                    &e.to_string(),
+                                )
+                                .await;
+                            }
+                        };
+                    }
+                }
             }
             DemoPlayerMsg::OpenSettings => {
                 self.preferences_wnd = Some(
@@ -353,7 +390,8 @@ impl AsyncComponent for DemoPlayerModel {
                 }
             }
             DemoPlayerMsg::DeleteSelected => {
-                if ui_util::delete_dialog(root).await {
+                let count = self.demo_list.model().get_selected_demos().len();
+                if ui_util::delete_dialog(root, count).await {
                     for d in self.demo_list.model().get_selected_demos() {
                         self.demo_manager.delete_demo(&d).await;
                     }

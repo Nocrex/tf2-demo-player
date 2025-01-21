@@ -302,11 +302,8 @@ impl AsyncComponent for ControlsModel {
                         .await;
                         break 'replay;
                     }
-                    let replay_folder = tf_folder_path
-                        .join("tf")
-                        .join("replay")
-                        .join("client")
-                        .join("replays");
+                    let replay_folder =
+                        async_std::path::PathBuf::from(self.settings.borrow().replays_folder());
                     if demo.has_replay(&replay_folder).await {
                         ui_util::notice_dialog(&self.window, "Demo already converted", "").await;
                         break 'replay;

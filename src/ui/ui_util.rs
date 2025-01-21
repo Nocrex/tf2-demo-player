@@ -1,11 +1,11 @@
 use adw::prelude::*;
 use relm4::prelude::*;
 
-pub async fn delete_dialog(root: &adw::Window) -> bool {
+pub async fn delete_dialog(root: &adw::Window, count: usize) -> bool {
     let ad = adw::AlertDialog::builder()
         .default_response("cancel")
         .close_response("cancel")
-        .body("Deleting selected demos!")
+        .body(format!("Deleting {count} selected files!"))
         .heading("Are you sure?")
         .build();
 

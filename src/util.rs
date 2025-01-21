@@ -30,6 +30,38 @@ pub fn steamid_32_to_64(steamid32: &str) -> Option<String> {
     Some(format!("{}", id32 + 76561197960265728))
 }
 
+pub async fn find_obsolete_replays(
+    replay_folder: impl Into<async_std::path::PathBuf>,
+) -> Result<Vec<std::path::PathBuf>, String> {
+    let replay_folder: async_std::path::PathBuf = replay_folder.into();
+    let mut replays = Vec::new();
+    for replay in glob::glob(&format!("{}/*.dmx", replay_folder.to_str().unwrap()))
+        .map_err(|e| e.to_string())?
+    {
+        if replay.is_err() {
+            continue;
+        }
+        let replay = replay.unwrap();
+        let contents = async_std::fs::read_to_string(&replay).await;
+        if let Err(e) = contents {
+            log::warn!("Couldn't read dmx file: {e}");
+            continue;
+        }
+        let contents = contents.unwrap();
+
+        let recon_file_regex = regex_macro::regex!(r#"recon_filename"\s+"([^"]+)"#);
+
+        if let Some(cap) = recon_file_regex.captures(&contents) {
+            let demo = cap.get(1).unwrap().as_str();
+            let path = replay_folder.join(demo);
+            if !path.exists().await {
+                replays.push(replay.into());
+            }
+        }
+    }
+    Ok(replays)
+}
+
 pub mod steam {
 
     pub fn tf_folder() -> Option<std::path::PathBuf> {

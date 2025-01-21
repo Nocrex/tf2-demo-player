@@ -1,4 +1,7 @@
-use std::fs;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -62,5 +65,9 @@ impl Settings {
         self.recent_folders.retain(|p| *p != path);
         self.recent_folders.insert(0, path.to_owned());
         self.recent_folders.truncate(5);
+    }
+
+    pub fn replays_folder(&self) -> PathBuf {
+        Path::new(&self.tf_folder_path).join("tf/replay/client/replays")
     }
 }
