@@ -18,7 +18,7 @@ pub async fn delete_dialog(root: &adw::Window, count: usize) -> bool {
     }
 }
 
-pub async fn notice_dialog(root: &adw::Window, title: &str, message: &str) {
+pub fn notice_dialog(root: &adw::Window, title: &str, message: &str) {
     let ad = adw::AlertDialog::builder()
         .default_response("ok")
         .close_response("ok")
@@ -26,7 +26,7 @@ pub async fn notice_dialog(root: &adw::Window, title: &str, message: &str) {
         .heading(title)
         .build();
     ad.add_response("ok", "OK");
-    ad.choose_future(root).await;
+    ad.choose(root, None::<&gtk::gio::Cancellable>, |_| {});
 }
 
 pub async fn entry_dialog(

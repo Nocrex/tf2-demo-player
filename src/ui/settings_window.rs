@@ -11,7 +11,7 @@ pub enum PreferencesMsg {
 
     DoubleclickPlay(bool),
     EventSkipOffset(f64),
-    TF2FolderPath(String),
+    TF2FolderPath,
     RConPassword(String),
 }
 
@@ -26,13 +26,12 @@ pub struct PreferencesModel {
     settings: Settings,
     connection_test_msg: String,
     connection_test_active: bool,
-
-    tf_path_valid: bool,
 }
 
 #[derive(Debug)]
 pub enum PreferencesCmd {
     ConnectionTestResult(String),
+    FolderBrowseResult(std::path::PathBuf),
 }
 
 #[relm4::component(pub)]
@@ -81,13 +80,18 @@ impl Component for PreferencesModel {
                         }
                     },
 
-                    adw::EntryRow {
-                        #[watch]
-                        set_title: if model.tf_path_valid {"TF2 folder"} else {"TF2 folder (invalid)"},
+                    adw::ActionRow {
+                        set_title: "TF2 folder",
                         set_tooltip_text: Some("Folder that contains the \"tf\" folder, if set incorrectly replays will not show up in-game!"),
-                        set_text: &model.settings.tf_folder_path,
-                        connect_changed[sender] => move |er|{
-                            sender.input(PreferencesMsg::TF2FolderPath(er.text().as_str().to_owned()))
+                        #[watch]
+                        set_subtitle: model.settings.tf_folder_path.as_ref().map_or("(unset)", |p|p.to_str().unwrap()),
+
+                        set_activatable_widget: Some(&tf_browse_button),
+
+                        add_suffix: tf_browse_button = &gtk::Button {
+                            set_valign: gtk::Align::Center,
+                            set_label: "Browse",
+                            connect_clicked => PreferencesMsg::TF2FolderPath,
                         }
                     },
                 },
@@ -134,7 +138,6 @@ impl Component for PreferencesModel {
             parent,
             connection_test_msg: "".to_owned(),
             connection_test_active: false,
-            tf_path_valid: true,
         };
 
         let widgets = view_output!();
@@ -169,9 +172,19 @@ impl Component for PreferencesModel {
             PreferencesMsg::DoubleclickPlay(p) => self.settings.doubleclick_play = p,
             PreferencesMsg::EventSkipOffset(off) => self.settings.event_skip_predelay = off as f32,
             PreferencesMsg::RConPassword(pass) => self.settings.rcon_pw = pass,
-            PreferencesMsg::TF2FolderPath(path) => {
-                self.tf_path_valid = std::path::PathBuf::from(path.clone()).join("tf").is_dir();
-                self.settings.tf_folder_path = path;
+            PreferencesMsg::TF2FolderPath => {
+                let dia = gtk::FileDialog::new();
+                let sender = sender.clone();
+                dia.select_folder(
+                    Some(&self.parent),
+                    None::<&gtk::gio::Cancellable>,
+                    move |res| match res {
+                        Ok(file) => sender
+                            .command_sender()
+                            .emit(PreferencesCmd::FolderBrowseResult(file.path().unwrap())),
+                        Err(e) => log::warn!("Error while picking folder: {e}"),
+                    },
+                );
             }
         }
     }
@@ -186,6 +199,17 @@ impl Component for PreferencesModel {
             PreferencesCmd::ConnectionTestResult(msg) => {
                 self.connection_test_msg = msg;
                 self.connection_test_active = false;
+            }
+            PreferencesCmd::FolderBrowseResult(path) => {
+                if !path.join("tf").is_dir() {
+                    crate::ui::ui_util::notice_dialog(
+                        &self.parent,
+                        "Invalid folder selected",
+                        "Please select the \"Team Fortress 2\" folder",
+                    );
+                } else {
+                    self.settings.tf_folder_path = Some(path);
+                }
             }
         }
     }

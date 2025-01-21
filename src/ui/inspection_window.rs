@@ -26,8 +26,8 @@ lazy_static::lazy_static! {
     static ref TEAM_ORDERING: HashMap<Team, usize> = HashMap::from_iter(vec![Team::Blue, Team::Red, Team::Spectator, Team::Other].iter().cloned().enumerate().map(|i|(i.1, i.0)));
 }
 
-#[relm4::component(async pub)]
-impl AsyncComponent for InspectionModel {
+#[relm4::component(pub)]
+impl Component for InspectionModel {
     type Init = ();
     type Input = Demo;
     type Output = InspectionOut;
@@ -172,11 +172,11 @@ impl AsyncComponent for InspectionModel {
         }
     }
 
-    async fn init(
+    fn init(
         _init: Self::Init,
         root: Self::Root,
-        sender: AsyncComponentSender<Self>,
-    ) -> AsyncComponentParts<Self> {
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
         let model = InspectionModel {
             insp: None,
             tps: Demo::TICKRATE,
@@ -184,13 +184,13 @@ impl AsyncComponent for InspectionModel {
 
         let widgets = view_output!();
 
-        AsyncComponentParts { model, widgets }
+        ComponentParts { model, widgets }
     }
 
-    async fn update(
+    fn update(
         &mut self,
         message: Self::Input,
-        sender: AsyncComponentSender<Self>,
+        sender: ComponentSender<Self>,
         root: &Self::Root,
     ) -> () {
         let mut message = message;
@@ -205,14 +205,14 @@ impl AsyncComponent for InspectionModel {
         root.present();
     }
 
-    async fn update_cmd(
+    fn update_cmd(
         &mut self,
         message: Self::CommandOutput,
-        _sender: AsyncComponentSender<Self>,
+        _sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
         if let Err(e) = &message {
-            ui_util::notice_dialog(&root, "An error occured while parsing the demo", e).await;
+            ui_util::notice_dialog(&root, "An error occured while parsing the demo", e);
         }
         self.insp = message.ok();
     }

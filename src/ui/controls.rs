@@ -51,7 +51,7 @@ pub struct ControlsModel {
     window: adw::Window,
     settings: Rc<RefCell<Settings>>,
 
-    inspection_wnd: AsyncController<InspectionModel>,
+    inspection_wnd: Controller<InspectionModel>,
 }
 
 #[relm4::component(async pub)]
@@ -291,19 +291,36 @@ impl AsyncComponent for ControlsModel {
             }
             ControlsMsg::ConvertReplay => 'replay: {
                 if let Some(demo) = &mut self.demo {
-                    let tf_folder_path =
-                        async_std::path::PathBuf::from(&self.settings.borrow().tf_folder_path);
+                    if self.settings.borrow().tf_folder_path.is_none() {
+                        ui_util::notice_dialog(
+                            &self.window,
+                            "TF2 folder path not set up",
+                            "Please check your TF2 folder setting",
+                        );
+                        break 'replay;
+                    }
+                    let tf_folder_path: async_std::path::PathBuf = self
+                        .settings
+                        .borrow()
+                        .tf_folder_path
+                        .as_ref()
+                        .unwrap()
+                        .into();
                     if !tf_folder_path.is_dir().await {
                         ui_util::notice_dialog(
                             &self.window,
                             "TF2 folder does not exist or cannot be accessed",
                             "Please check your TF2 folder setting",
-                        )
-                        .await;
+                        );
                         break 'replay;
                     }
-                    let replay_folder: async_std::path::PathBuf =
-                        self.settings.borrow().replays_folder().into();
+                    let replay_folder: async_std::path::PathBuf = self
+                        .settings
+                        .borrow()
+                        .replays_folder()
+                        .as_ref()
+                        .unwrap()
+                        .into();
                     if !replay_folder.is_dir().await {
                         ui_util::notice_dialog(
                             &self.window,
@@ -312,12 +329,11 @@ impl AsyncComponent for ControlsModel {
                                 "Please check your TF2 folder setting\n({})",
                                 replay_folder.to_str().unwrap()
                             ),
-                        )
-                        .await;
+                        );
                         break 'replay;
                     }
                     if demo.has_replay(&replay_folder).await {
-                        ui_util::notice_dialog(&self.window, "Demo already converted", "").await;
+                        ui_util::notice_dialog(&self.window, "Demo already converted", "");
                         break 'replay;
                     }
                     if let Some(title) = ui_util::entry_dialog(
@@ -329,22 +345,16 @@ impl AsyncComponent for ControlsModel {
                     .await
                     {
                         match demo.convert_to_replay(&replay_folder, &title).await {
-                            Ok(_) => {
-                                ui_util::notice_dialog(
-                                    &self.window,
-                                    "Replay created successfully",
-                                    "",
-                                )
-                                .await
-                            }
-                            Err(e) => {
-                                ui_util::notice_dialog(
-                                    &self.window,
-                                    "Failed to create replay",
-                                    &e.to_string(),
-                                )
-                                .await
-                            }
+                            Ok(_) => ui_util::notice_dialog(
+                                &self.window,
+                                "Replay created successfully",
+                                "",
+                            ),
+                            Err(e) => ui_util::notice_dialog(
+                                &self.window,
+                                "Failed to create replay",
+                                &e.to_string(),
+                            ),
                         };
                     }
                 }

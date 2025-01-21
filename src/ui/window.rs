@@ -41,7 +41,7 @@ pub enum DemoPlayerMsg {
     DeleteUnmarked,
     CleanReplays,
 
-    OpenFolder(String, bool),
+    OpenFolder(Option<std::path::PathBuf>, bool),
     SelectFolder,
     ReloadFolder,
 
@@ -96,7 +96,7 @@ impl AsyncComponent for DemoPlayerModel {
                     set_title_widget = &adw::WindowTitle{
                         set_title: "Demo Player",
                         #[watch]
-                        set_subtitle: &model.settings.borrow().demo_folder_path,
+                        set_subtitle: model.settings.borrow().demo_folder_path.as_ref().map_or("(unset)", |p|p.to_str().unwrap()),
                     },
 
                     pack_start = &adw::SplitButton{
@@ -108,6 +108,7 @@ impl AsyncComponent for DemoPlayerModel {
                         set_menu_model: Some(&{
                             let m_model = gio::Menu::new();
                             for folder in &model.settings.borrow().recent_folders {
+                                let folder = folder.to_str().unwrap();
                                 let item = gio::MenuItem::new(Some(folder), None);
                                 item.set_action_and_target_value(Some("app-menu.open-folder"), Some(&folder.to_variant()));
                                 m_model.append_item(&item);
@@ -229,8 +230,8 @@ impl AsyncComponent for DemoPlayerModel {
 
             let open_folder_sender = sender.clone();
             let open_folder_action: RelmAction<OpenFolderAction> =
-                RelmAction::new_with_target_value(move |_, val| {
-                    open_folder_sender.input(DemoPlayerMsg::OpenFolder(val, true));
+                RelmAction::new_with_target_value(move |_, val: String| {
+                    open_folder_sender.input(DemoPlayerMsg::OpenFolder(Some(val.into()), true));
                 });
             group.add_action(open_folder_action);
 
@@ -248,7 +249,7 @@ impl AsyncComponent for DemoPlayerModel {
         }
 
         sender.input(DemoPlayerMsg::OpenFolder(
-            model.settings.borrow().demo_folder_path.to_owned(),
+            model.settings.borrow().demo_folder_path.clone(),
             true,
         ));
 
@@ -271,15 +272,24 @@ impl AsyncComponent for DemoPlayerModel {
                 self.demo_manager.delete_unmarked_demos().await;
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
-            DemoPlayerMsg::CleanReplays => {
-                let obsoletes =
-                    crate::util::find_obsolete_replays(self.settings.borrow().replays_folder())
-                        .await;
+            DemoPlayerMsg::CleanReplays => 'replay_clean: {
+                if self.settings.borrow().tf_folder_path.is_none() {
+                    ui_util::notice_dialog(
+                        root,
+                        "TF2 folder path not set up",
+                        "Please check your TF2 folder setting",
+                    );
+                    break 'replay_clean;
+                }
+                let obsoletes = crate::util::find_obsolete_replays(
+                    self.settings.borrow().replays_folder().unwrap(),
+                )
+                .await;
                 if let Err(e) = obsoletes {
-                    ui_util::notice_dialog(root, "Error while loading replays", &e).await;
+                    ui_util::notice_dialog(root, "Error while loading replays", &e);
                 } else if let Ok(obsolete_dmx_files) = obsoletes {
                     if obsolete_dmx_files.is_empty() {
-                        ui_util::notice_dialog(root, "No replays to clean", "").await;
+                        ui_util::notice_dialog(root, "No replays to clean", "");
                     } else {
                         if ui_util::delete_dialog(root, obsolete_dmx_files.len()).await {
                             let res = async_std::task::spawn_blocking(|| {
@@ -291,8 +301,7 @@ impl AsyncComponent for DemoPlayerModel {
                                     root,
                                     "Error cleaning demos",
                                     &e.to_string(),
-                                )
-                                .await;
+                                );
                             }
                         };
                     }
@@ -320,19 +329,21 @@ impl AsyncComponent for DemoPlayerModel {
                 let dia = gtk::FileDialog::builder().build();
                 let res = dia.select_folder_future(Some(root)).await;
                 if let Ok(file) = res {
-                    let path = file.path().unwrap().display().to_string();
-                    sender.input(DemoPlayerMsg::OpenFolder(path, true));
+                    let path = file.path().unwrap();
+                    sender.input(DemoPlayerMsg::OpenFolder(Some(path), true));
                 }
             }
-            DemoPlayerMsg::OpenFolder(path, scroll_up) => {
-                self.demo_manager.load_demos(&path).await;
+            DemoPlayerMsg::OpenFolder(path, scroll_up) => match path {
+                None => self.demo_manager.clear(),
+                Some(path) => {
+                    self.demo_manager.load_demos(&path).await;
 
-                self.settings.borrow_mut().folder_opened(&path);
-                self.settings.borrow().save();
-                self.demo_details.emit(InfoPaneMsg::Display(None, false));
-                sender.input(DemoPlayerMsg::DemosChanged(scroll_up));
-                // TODO: update recent folders menu
-            }
+                    self.settings.borrow_mut().folder_opened(&path);
+                    self.settings.borrow().save();
+                    self.demo_details.emit(InfoPaneMsg::Display(None, false));
+                    sender.input(DemoPlayerMsg::DemosChanged(scroll_up));
+                }
+            },
             DemoPlayerMsg::ReloadFolder => {
                 sender.input(DemoPlayerMsg::OpenFolder(
                     self.settings.borrow().demo_folder_path.clone(),

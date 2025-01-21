@@ -234,9 +234,14 @@ impl DemoManager {
         DemoManager::default()
     }
 
-    pub async fn load_demos(&mut self, folder_path: &str) {
+    pub fn clear(&mut self) {
         self.demos.clear();
-        for path in glob(&format!("{}/*.dem", folder_path)).unwrap() {
+    }
+
+    pub async fn load_demos(&mut self, folder_path: impl Into<PathBuf>) {
+        let folder_path: PathBuf = folder_path.into();
+        self.demos.clear();
+        for path in glob(&format!("{}/*.dem", folder_path.display().to_string())).unwrap() {
             let d = Demo::new(Path::new(path.unwrap().to_str().unwrap()));
             self.demos.insert(d.filename.to_owned(), d);
         }
