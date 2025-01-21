@@ -302,8 +302,20 @@ impl AsyncComponent for ControlsModel {
                         .await;
                         break 'replay;
                     }
-                    let replay_folder =
-                        async_std::path::PathBuf::from(self.settings.borrow().replays_folder());
+                    let replay_folder: async_std::path::PathBuf =
+                        self.settings.borrow().replays_folder().into();
+                    if !replay_folder.is_dir().await {
+                        ui_util::notice_dialog(
+                            &self.window,
+                            "Replay folder does not exist or cannot be accessed",
+                            &format!(
+                                "Please check your TF2 folder setting\n({})",
+                                replay_folder.to_str().unwrap()
+                            ),
+                        )
+                        .await;
+                        break 'replay;
+                    }
                     if demo.has_replay(&replay_folder).await {
                         ui_util::notice_dialog(&self.window, "Demo already converted", "").await;
                         break 'replay;
