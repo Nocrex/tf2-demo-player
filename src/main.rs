@@ -7,6 +7,7 @@ mod util;
 
 use relm4::RelmApp;
 mod ui;
+use simplelog::{Config, TermLogger, WriteLogger};
 use ui::DemoPlayerModel;
 
 mod load_icons {
@@ -36,10 +37,44 @@ mod load_icons {
 
 #[async_std::main]
 async fn main() {
-    env_logger::init();
+    simplelog::CombinedLogger::init(if cfg!(debug_assertions) {
+        vec![simplelog::TermLogger::new(
+            log::LevelFilter::max(),
+            Config::default(),
+            simplelog::TerminalMode::Mixed,
+            simplelog::ColorChoice::Auto,
+        )]
+    } else {
+        vec![
+            TermLogger::new(
+                log::LevelFilter::Info,
+                Config::default(),
+                simplelog::TerminalMode::Mixed,
+                simplelog::ColorChoice::Auto,
+            ),
+            WriteLogger::new(
+                log::LevelFilter::Info,
+                Config::default(),
+                std::fs::OpenOptions::new()
+                    .append(true)
+                    .create(true)
+                    .open("log.txt")
+                    .unwrap(),
+            ),
+        ]
+    })
+    .unwrap();
+    log::info!("Started");
+
+    let panic_hndlr = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |i| {
+        log::error!("Rust panicked! -----\n{i}\n-------");
+        panic_hndlr(i);
+    }));
 
     load_icons::setup();
 
     let app = RelmApp::new("com.github.nocrex.tf2demoplayer");
     app.run_async::<DemoPlayerModel>(());
+    log::info!("Exited")
 }
