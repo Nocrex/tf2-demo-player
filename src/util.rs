@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 pub fn ticks_to_sec(ticks: u32, tickrate: f32) -> f32 {
     return ticks as f32 / tickrate;
 }
@@ -32,12 +34,10 @@ pub fn steamid_32_to_64(steamid32: &str) -> Option<String> {
 
 pub async fn find_obsolete_replays(
     replay_folder: impl Into<async_std::path::PathBuf>,
-) -> Result<Vec<std::path::PathBuf>, String> {
+) -> Result<Vec<std::path::PathBuf>> {
     let replay_folder: async_std::path::PathBuf = replay_folder.into();
     let mut replays = Vec::new();
-    for replay in glob::glob(&format!("{}/*.dmx", replay_folder.to_str().unwrap()))
-        .map_err(|e| e.to_string())?
-    {
+    for replay in glob::glob(&format!("{}/*.dmx", replay_folder.to_str().unwrap()))? {
         if replay.is_err() {
             continue;
         }

@@ -1,5 +1,6 @@
+use anyhow::Result;
 use async_std::{
-    fs, io,
+    fs,
     path::{Path, PathBuf},
     task,
 };
@@ -83,9 +84,7 @@ impl Demo {
             .ok();
     }
 
-    pub async fn full_analysis(
-        &mut self,
-    ) -> Result<Arc<tf_demo_parser::MatchState>, Box<dyn std::error::Error>> {
+    pub async fn full_analysis(&mut self) -> Result<Arc<tf_demo_parser::MatchState>> {
         let f = fs::read(&self.path).await?;
         let demo = tf_demo_parser::Demo::new(&f);
         let parser = tf_demo_parser::DemoParser::new(demo.get_stream());
@@ -153,7 +152,7 @@ impl Demo {
         &mut self,
         replays_folder: &Path,
         title: &str,
-    ) -> io::Result<()> {
+    ) -> Result<()> {
         create_replay_index_file(replays_folder).await?;
 
         let replay_demo_path = replays_folder.join(&self.filename);
@@ -216,7 +215,7 @@ impl Demo {
     }
 }
 
-async fn create_replay_index_file(replay_folder: &Path) -> io::Result<()> {
+async fn create_replay_index_file(replay_folder: &Path) -> Result<()> {
     let index_path = replay_folder.join("replays.dmx");
     if !index_path.exists().await {
         fs::write(index_path, "\"root\"\n{\n\t\"version\"\t\"0\"\n}").await?;

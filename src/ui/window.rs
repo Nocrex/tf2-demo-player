@@ -286,7 +286,7 @@ impl AsyncComponent for DemoPlayerModel {
                 )
                 .await;
                 if let Err(e) = obsoletes {
-                    ui_util::notice_dialog(root, "Error while loading replays", &e);
+                    ui_util::notice_dialog(root, "Error while loading replays", &e.to_string());
                 } else if let Ok(obsolete_dmx_files) = obsoletes {
                     if obsolete_dmx_files.is_empty() {
                         ui_util::notice_dialog(root, "No replays to clean", "");

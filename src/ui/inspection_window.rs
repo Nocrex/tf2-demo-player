@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::demo_manager::Demo;
 use adw::prelude::*;
+use anyhow::Result;
 use gtk::glib::markup_escape_text;
 use itertools::Itertools;
 use relm4::prelude::*;
@@ -31,7 +32,7 @@ impl Component for InspectionModel {
     type Init = ();
     type Input = Demo;
     type Output = InspectionOut;
-    type CommandOutput = Result<Arc<MatchState>, String>;
+    type CommandOutput = Result<Arc<MatchState>>;
 
     view! {
         adw::Window{
@@ -196,12 +197,7 @@ impl Component for InspectionModel {
         let mut message = message;
         self.tps = message.tps();
         self.insp = None;
-        sender.oneshot_command(async move {
-            message
-                .full_analysis()
-                .await
-                .map_err(|e| format!("{:?}", e))
-        });
+        sender.oneshot_command(async move { message.full_analysis().await });
         root.present();
     }
 
@@ -212,7 +208,11 @@ impl Component for InspectionModel {
         root: &Self::Root,
     ) {
         if let Err(e) = &message {
-            ui_util::notice_dialog(&root, "An error occured while parsing the demo", e);
+            ui_util::notice_dialog(
+                &root,
+                "An error occured while parsing the demo",
+                &e.to_string(),
+            );
         }
         self.insp = message.ok();
     }

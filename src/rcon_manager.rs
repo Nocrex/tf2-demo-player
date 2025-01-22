@@ -1,6 +1,7 @@
 use rcon::{AsyncStdStream, Connection, Error};
 
 use crate::demo_manager::Demo;
+use anyhow::Result;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -53,14 +54,14 @@ impl RconManager {
         self.conn.is_some()
     }
 
-    pub async fn connect(&mut self) -> Result<(), Error> {
-        let mut err: Result<(), Error> = Ok(());
+    pub async fn connect(&mut self) -> Result<()> {
+        let mut err: Result<()> = Ok(());
         match <Connection<AsyncStdStream>>::builder()
             .connect("localhost:27015", &self.password)
             .await
         {
             Ok(c) => self.conn = Some(c),
-            Err(e) => err = Err(e),
+            Err(e) => err = Err(e.into()),
         };
 
         if let Err(e) = &err {
@@ -72,11 +73,11 @@ impl RconManager {
         err
     }
 
-    pub async fn send_command(&mut self, command: Command<'_>) -> Result<String, Error> {
+    pub async fn send_command(&mut self, command: Command<'_>) -> Result<String> {
         log::debug!("Sending command: {}", command.get_command());
         if !self.is_connected() {
             if let Err(e) = self.connect().await {
-                return Err(e);
+                return Err(e.into());
             }
         }
 
@@ -92,18 +93,18 @@ impl RconManager {
                 Error::CommandTooLong => {}
             }
         }
-        res
+        Ok(res?)
     }
 
-    pub async fn play_demo(&mut self, demo: &Demo) -> Result<String, Error> {
+    pub async fn play_demo(&mut self, demo: &Demo) -> Result<String> {
         self.send_command(Command::PlayDemo(demo)).await
     }
 
-    pub async fn skip_to_tick(&mut self, tick: u32, pause: bool) -> Result<String, Error> {
+    pub async fn skip_to_tick(&mut self, tick: u32, pause: bool) -> Result<String> {
         self.send_command(Command::SkipToTick(tick, pause)).await
     }
 
-    pub async fn stop_playback(&mut self) -> Result<String, Error> {
+    pub async fn stop_playback(&mut self) -> Result<String> {
         self.send_command(Command::StopPlayback()).await
     }
 }

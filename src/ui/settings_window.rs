@@ -152,7 +152,7 @@ impl Component for PreferencesModel {
                 let res = manager.connect().await;
                 PreferencesCmd::ConnectionTestResult(match res {
                     Ok(_) => "Connection Successful!".to_owned(),
-                    Err(e) => match e {
+                    Err(e) => match e.downcast().unwrap() {
                         rcon::Error::Auth => {
                             "Authorization failed, probably incorrect password".to_owned()
                         }

@@ -28,6 +28,7 @@ regex-macro = "0.2.0"
 itertools = "0.14.0"
 lazy_static = "1.5.0"
 simplelog = "0.12.2"
+anyhow = "1.0.95"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52.0"
