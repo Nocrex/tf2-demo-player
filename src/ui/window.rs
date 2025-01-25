@@ -117,15 +117,16 @@ impl AsyncComponent for DemoPlayerModel {
                         }),
                     },
 
-                    pack_end: app_menu_button = &gtk::MenuButton{
+                    pack_end = &gtk::MenuButton{
                         set_icon_name: "open-menu-symbolic",
                         set_menu_model: Some(&app_menu)
                     },
 
-                    pack_end = &gtk::Button{
+                    pack_end = &adw::SplitButton{
                         set_icon_name: "user-trash-symbolic",
                         set_tooltip_text: Some("Delete selected demo(s)"),
                         connect_clicked => DemoPlayerMsg::DeleteSelected,
+                        set_menu_model: Some(&delete_menu),
                     },
 
                     pack_end = &gtk::Button{
@@ -152,11 +153,13 @@ impl AsyncComponent for DemoPlayerModel {
     }
 
     menu! {
-        app_menu: {
-            "Settings" => OpenSettingsAction,
+        delete_menu: {
             "Delete 0s demos" => DeleteUnfinishedAction,
             "Delete demos without bookmarks" => DeleteUnmarkedAction,
             "Clean replays" => CleanReplaysAction,
+        },
+        app_menu: {
+            "Settings" => OpenSettingsAction,
             "About" => ShowAboutAction,
         }
     }
