@@ -174,6 +174,12 @@ impl Component for PreferencesModel {
             PreferencesMsg::RConPassword(pass) => self.settings.rcon_pw = pass,
             PreferencesMsg::TF2FolderPath => {
                 let dia = gtk::FileDialog::new();
+                let initial = self
+                    .settings
+                    .tf_folder_path
+                    .as_ref()
+                    .map(|p| gtk::gio::File::for_path(p));
+                dia.set_initial_folder(initial.as_ref());
                 let sender = sender.clone();
                 dia.select_folder(
                     Some(&self.parent),
@@ -204,12 +210,11 @@ impl Component for PreferencesModel {
                 if !path.join("tf").is_dir() {
                     crate::ui::ui_util::notice_dialog(
                         &self.parent,
-                        "Invalid folder selected",
-                        "Please select the \"Team Fortress 2\" folder",
+                        "Possibly invalid folder selected",
+                        "Please select the folder named \"Team Fortress 2\", which contains the tf2 exe",
                     );
-                } else {
-                    self.settings.tf_folder_path = Some(path);
                 }
+                self.settings.tf_folder_path = Some(path);
             }
         }
     }
