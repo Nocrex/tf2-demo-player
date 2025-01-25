@@ -251,6 +251,17 @@ impl AsyncComponent for DemoPlayerModel {
                 .insert_action_group("app-menu", Some(&actions));
         }
 
+        if let Ok(Some(ver)) = crate::util::check_new_version()
+            .await
+            .inspect_err(|e| log::warn!("Failed to fetch newest version: {e:?}"))
+        {
+            ui_util::notice_dialog(
+                &root,
+                &format!("New version available ({} -> {ver})", env!("CARGO_PKG_VERSION")),
+                &format!("Visit the <a href=\"http://github.com/Nocrex/tf2-demo-player/releases/latest\">releases section</a> to download it"),
+            );
+        }
+
         sender.input(DemoPlayerMsg::OpenFolder(
             model.settings.borrow().demo_folder_path.clone(),
             true,

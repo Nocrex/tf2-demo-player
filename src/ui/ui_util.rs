@@ -24,6 +24,7 @@ pub fn notice_dialog(root: &adw::Window, title: &str, message: &str) {
         .close_response("ok")
         .body(message)
         .heading(title)
+        .body_use_markup(true)
         .build();
     ad.add_response("ok", "OK");
     ad.choose(root, None::<&gtk::gio::Cancellable>, |_| {});

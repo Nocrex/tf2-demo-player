@@ -1,6 +1,6 @@
 [package]
 name = "tf2-demo-player"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 [dependencies]
@@ -29,6 +29,7 @@ itertools = "0.14.0"
 lazy_static = "1.5.0"
 simplelog = "0.12.2"
 anyhow = "1.0.95"
+reqwest = "0.12.12"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52.0"

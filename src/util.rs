@@ -62,6 +62,29 @@ pub async fn find_obsolete_replays(
     Ok(replays)
 }
 
+pub async fn check_new_version() -> Result<Option<String>> {
+    let resp = reqwest::Client::new()
+        .get("https://api.github.com/repos/Nocrex/tf2-demo-player/releases/latest")
+        .header("User-Agent", "tf2-demo-player")
+        .send()
+        .await?;
+
+    let text = resp.text().await?;
+
+    let json: serde_json::Value = serde_json::from_str(&text)?;
+
+    if let Some(serde_json::Value::String(tag_name)) = json.get("tag_name") {
+        let ver = tag_name.trim_start_matches("v");
+
+        if ver.gt(env!("CARGO_PKG_VERSION")) {
+            return Ok(Some(ver.to_owned()));
+        };
+        return Ok(None);
+    }
+
+    anyhow::bail!("Couldn't parse tag version");
+}
+
 pub mod steam {
 
     pub fn tf_folder() -> Option<std::path::PathBuf> {
