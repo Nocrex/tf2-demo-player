@@ -85,7 +85,7 @@ impl Component for PreferencesModel {
                         set_tooltip_text: Some("Folder that contains the \"tf\" folder, if set incorrectly replays will not show up in-game!"),
                         #[watch]
                         set_subtitle: model.settings.tf_folder_path.as_ref().map_or("(unset)", |p|p.to_str().unwrap()),
-
+                        set_subtitle_selectable: true,
                         set_activatable_widget: Some(&tf_browse_button),
 
                         add_suffix: tf_browse_button = &gtk::Button {

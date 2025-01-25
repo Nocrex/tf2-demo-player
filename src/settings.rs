@@ -20,9 +20,9 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        let tf_folder = util::steam::tf_folder().map(|p| p.join("tf"));
+        let tf_folder = util::steam::tf_folder();
         Self {
-            demo_folder_path: tf_folder.clone().map(|p| p.join("demos")),
+            demo_folder_path: tf_folder.clone().map(|p| p.join("tf/demos")),
             tf_folder_path: tf_folder,
             rcon_pw: Default::default(),
             event_skip_predelay: 30.0,
