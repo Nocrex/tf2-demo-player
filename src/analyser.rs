@@ -261,12 +261,33 @@ impl ChatMessage {
     }
 
     pub fn from_text(message: &TextMessage) -> Self {
+        let mut text = resolve_string(&message.text.to_string()).to_owned();
+        for i in 1..4 {
+            let pat = format!("%s{i}");
+            if text.contains(&pat) {
+                text = text.replace(&pat, resolve_string(&message.substitute[i - 1].to_string()));
+                continue;
+            }
+            break;
+        }
         ChatMessage {
             kind: ChatMessageKind::Empty,
             from: String::new(),
-            text: message.plain_text(),
+            text,
             team: None,
         }
+    }
+}
+
+fn resolve_string(string: &str) -> &str {
+    match string {
+        "#game_player_was_team_balanced" => "%s1 was moved to the other team for game balance",
+        "#game_spawn_as" => "*You will spawn as %s1",
+        "#TF_TeamsSwitched" => "Teams have been switched.",
+        "#TF_Autobalance_TeamChangeDone_Match" => "You have switched to team %s1 and will receive %s2 experience points at the end of the round for changing teams.",
+        "#TF_BlueTeam_Name" => "BLU",
+        "#TF_RedTeam_Name" => "RED",
+        o => o,
     }
 }
 
@@ -447,9 +468,6 @@ impl Analyser {
                     });
                 }
             }
-            GameEvent::TeamPlayTeamBalancedPlayer(bal) => {
-                //dbg!(bal);
-            }
             GameEvent::PlayerSpawn(spawn) => {
                 let spawn = Spawn::from_event(spawn, tick);
                 let suid = self.stable_user(
@@ -466,9 +484,6 @@ impl Analyser {
                 if player.team.is_empty() || player.team.last().unwrap().1 != spawn.team {
                     player.team.push((tick, spawn.team));
                 }
-            }
-            GameEvent::VoteStarted(vote) => {
-                dbg!(vote);
             }
             GameEvent::VoteCast(cast) => {
                 self.state.votes.entry(cast.voteidx).and_modify(|v| {
@@ -509,12 +524,6 @@ impl Analyser {
                     }
                 });
             }
-            GameEvent::VoteFailed(fail) => {
-                //dbg!(fail);
-            }
-            GameEvent::VotePassed(pass) => {
-                //dbg!(pass);
-            }
             GameEvent::VoteOptions(options) => {
                 let mut opts = vec![
                     options.option_1.to_string(),
@@ -533,12 +542,6 @@ impl Analyser {
                         options: opts,
                         ..Default::default()
                     });
-            }
-            GameEvent::VoteChanged(change) => {
-                //dbg!(change);
-            }
-            GameEvent::VoteEnded(end) => {
-                //dbg!(end);
             }
             GameEvent::PartyChat(chat) => {
                 //dbg!(chat);
