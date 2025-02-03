@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::analyser::MatchState;
+use crate::analyser::{MatchEventType, MatchState};
 use crate::demo_manager::Demo;
 use adw::prelude::*;
 use anyhow::Result;
@@ -63,16 +63,16 @@ impl Component for InspectionModel {
                                 .build();
 
                             model.insp.as_ref().inspect(|ms|{
-                                for user in ms.users.values().sorted_by(|a,b|TEAM_ORDERING[&a.last_team()].cmp(&TEAM_ORDERING[&b.last_team()])){
+                                for user in ms.users.iter().sorted_by(|a,b|TEAM_ORDERING[&a.last_team()].cmp(&TEAM_ORDERING[&b.last_team()])){
                                     let row = adw::ActionRow::new();
 
-                                    let sid64 = crate::util::steamid_32_to_64(&user.steam_id).unwrap_or_else(||{user.steam_id.clone()});
+                                    let sid64 = user.steam_id.as_ref().map(|sid|crate::util::steamid_32_to_64(&sid).unwrap_or_else(||{sid.clone()})).unwrap_or_default();
                                     let color = match &user.last_team() {
                                         Team::Spectator | Team::Other => "848484",
                                         Team::Red => "e04a4a",
                                         Team::Blue => "3449d1",
                                     };
-                                    row.set_title(&format!("<span foreground=\"#{color}\">{}</span>", markup_escape_text(&user.name)));
+                                    row.set_title(&format!("<span foreground=\"#{color}\">{}</span>", markup_escape_text(user.name.as_ref().unwrap_or(&"".to_owned()))));
                                     row.set_subtitle(&format!("{}, {}", user.last_team(), sid64));
                                     row.set_subtitle_selectable(true);
 
@@ -107,11 +107,15 @@ impl Component for InspectionModel {
 
 
                             model.insp.as_ref().inspect(|ms|{
-                                for chat in &ms.chat{
+                                ms.events.iter().filter(|me|matches!(me.value, MatchEventType::Chat(_))).for_each(|me|{
+                                    let chat = match &me.value {
+                                        MatchEventType::Chat(c) => c,
+                                        _ => panic!(),
+                                    };
                                     let row = adw::ActionRow::new();
                                     row.set_activatable(true);
 
-                                    let kind =  match chat.kind{
+                                    let kind = match chat.kind{
                                         ChatMessageKind::ChatAll => "",
                                         ChatMessageKind::ChatTeam => "(Team) ",
                                         ChatMessageKind::ChatAllDead => "*DEAD* ",
@@ -119,12 +123,21 @@ impl Component for InspectionModel {
                                         ChatMessageKind::ChatAllSpec => "*SPEC* ",
                                         ChatMessageKind::NameChange => "[Name Change] ",
                                         ChatMessageKind::Empty => "",
+                                    }.to_string();
+
+                                    let color = match &chat.team {
+                                        Some(t) => match t{
+                                        Team::Spectator | Team::Other => "848484",
+                                        Team::Red => "e04a4a",
+                                        Team::Blue => "3449d1",
+                                        }
+                                        None => "848484",
                                     };
 
                                     row.set_title(&markup_escape_text(&chat.text));
-                                    row.set_subtitle(&format!("{}{}", kind, markup_escape_text(&chat.from).as_str()));
+                                    row.set_subtitle(&format!("{}<span foreground=\"#{color}\">{}</span>", kind, markup_escape_text(&chat.from).as_str()));
 
-                                    row.add_suffix(&gtk::Label::new(Some(&format!("{} ({})", crate::util::ticks_to_timestamp(chat.tick.into(), model.tps), chat.tick))));
+                                    row.add_suffix(&gtk::Label::new(Some(&format!("{} ({})", crate::util::ticks_to_timestamp(me.tick.into(), model.tps), me.tick))));
 
                                     let copy_btn = gtk::Button::builder().icon_name(relm4_icons::icon_names::COPY).tooltip_text("Copy message").has_frame(false).build();
                                     let copy_txt = format!("{}{}: {}", kind, chat.from, chat.text);
@@ -137,12 +150,12 @@ impl Component for InspectionModel {
                                     row.add_suffix(&copy_btn);
 
                                     let row_sender = sender.clone();
-                                    let tick: u32 = chat.tick.into();
+                                    let tick: u32 = me.tick.into();
                                     row.connect_activated(move |_|{
                                         let _ = row_sender.output(InspectionOut::GotoTick(tick));
                                     });
                                     g_box.append(&row);
-                                }
+                                });
                             });
 
                             g_box

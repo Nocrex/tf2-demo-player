@@ -1,6 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
+use itertools::Itertools;
 use tf_demo_parser::demo::gameevent_gen::{PlayerConnectClientEvent, PlayerDisconnectEvent};
+use tf_demo_parser::demo::message::usermessage::{SayText2Message, TextMessage};
 use tf_demo_parser::demo::message::ServerInfoMessage;
 use tf_demo_parser::demo::parser::analyser::Spawn;
 use tf_demo_parser::ReadResult;
@@ -16,7 +18,7 @@ use tf_demo_parser::{
         },
         packet::stringtable::StringTableEntry,
         parser::{
-            analyser::{ChatMessage, Class, Team, UserId},
+            analyser::{Class, Team, UserId},
             handler::BorrowMessageHandler,
             MessageHandler,
         },
@@ -24,13 +26,13 @@ use tf_demo_parser::{
     MessageType, ParserState, Stream,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct UserInfo {
     pub classes: Vec<(DemoTick, Class)>,
-    pub name: String,
+    pub name: Option<String>,
     pub user_id: UserId,
-    pub steam_id: String,
-    pub entity_id: EntityId,
+    pub steam_id: Option<String>,
+    pub entity_id: Option<EntityId>,
     pub team: Vec<(DemoTick, Team)>,
 }
 
@@ -40,13 +42,13 @@ impl UserInfo {
     }
 }
 
-impl From<tf_demo_parser::demo::data::UserInfo> for UserInfo {
-    fn from(info: tf_demo_parser::demo::data::UserInfo) -> Self {
+impl From<&tf_demo_parser::demo::data::UserInfo> for UserInfo {
+    fn from(info: &tf_demo_parser::demo::data::UserInfo) -> Self {
         UserInfo {
-            name: info.player_info.name,
+            name: Some(info.player_info.name.clone()),
+            steam_id: Some(info.player_info.steam_id.clone()),
+            entity_id: Some(info.entity_id),
             user_id: info.player_info.user_id,
-            steam_id: info.player_info.steam_id,
-            entity_id: info.entity_id,
             classes: Default::default(),
             team: Default::default(),
         }
@@ -64,6 +66,12 @@ pub struct Vote {
     pub votes: Vec<(DemoTick, String, usize)>,
 }
 
+impl Vote {
+    pub fn result(&self) -> HashMap<&String, usize> {
+        self.votes.iter().map(|c| &self.options[c.2]).counts()
+    }
+}
+
 #[derive(Debug, Default)]
 pub enum VoteTeam {
     #[default]
@@ -72,30 +80,90 @@ pub enum VoteTeam {
     Both,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl ToString for VoteTeam {
+    fn to_string(&self) -> String {
+        match self {
+            VoteTeam::Unknown => "Unknown".to_string(),
+            VoteTeam::One(t) => t.to_string(),
+            VoteTeam::Both => "Both".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Death {
     pub weapon: String,
-    pub victim: UserId,
-    pub assister: Option<UserId>,
-    pub killer: UserId,
-    pub tick: DemoTick,
-    pub crit_type: u16,
+    pub victim: StableUserId,
+    pub assister: Option<StableUserId>,
+    pub killer: Option<StableUserId>,
+    pub crit_type: CritType,
+    pub domination: bool,
+    pub revenge: bool,
+    pub assist_dom: bool,
+    pub assist_revg: bool,
+    pub deadringer: bool,
+}
+
+#[derive(Debug, Default, Clone)]
+pub enum CritType {
+    #[default]
+    None,
+    Mini,
+    Full,
+    Unknown(u16),
 }
 
 impl Death {
-    pub fn from_event(event: &PlayerDeathEvent, tick: DemoTick) -> Self {
+    pub fn from_event(event: &PlayerDeathEvent, analyser: &mut Analyser) -> Self {
+        const TF_DEATH_DOMINATION: u16 = 0x0001; // killer is dominating victim
+        const TF_DEATH_ASSISTER_DOMINATION: u16 = 0x0002; // assister is dominating victim
+        const TF_DEATH_REVENGE: u16 = 0x0004; // killer got revenge on victim
+        const TF_DEATH_ASSISTER_REVENGE: u16 = 0x0008; // assister got revenge on victim
+        const TF_DEATH_FEIGN_DEATH: u16 = 0x0020; // feign death
         let assister = if event.assister < (16 * 1024) {
-            Some(UserId::from(event.assister))
+            Some(analyser.stable_user(
+                |u| u.user_id == event.assister,
+                || UserInfo {
+                    user_id: event.assister.into(),
+                    ..Default::default()
+                },
+            ))
         } else {
             None
         };
+        let killer = if event.attacker == 0 {
+            None
+        } else {
+            Some(analyser.stable_user(
+                |u| u.user_id == event.attacker,
+                || UserInfo {
+                    user_id: event.attacker.into(),
+                    ..Default::default()
+                },
+            ))
+        };
         Death {
             assister,
-            tick,
-            killer: UserId::from(event.attacker),
+            killer: killer,
             weapon: event.weapon.to_string(),
-            victim: UserId::from(event.user_id),
-            crit_type: event.crit_type,
+            victim: analyser.stable_user(
+                |u| u.user_id == event.user_id,
+                || UserInfo {
+                    user_id: event.user_id.into(),
+                    ..Default::default()
+                },
+            ),
+            crit_type: match event.crit_type {
+                0 => CritType::None,
+                1 => CritType::Mini,
+                2 => CritType::Full,
+                a => CritType::Unknown(a),
+            },
+            domination: (event.death_flags & TF_DEATH_DOMINATION) != 0,
+            revenge: (event.death_flags & TF_DEATH_REVENGE) != 0,
+            assist_dom: (event.death_flags & TF_DEATH_ASSISTER_DOMINATION) != 0,
+            assist_revg: (event.death_flags & TF_DEATH_ASSISTER_REVENGE) != 0,
+            deadringer: (event.death_flags & TF_DEATH_FEIGN_DEATH) != 0,
         }
     }
 }
@@ -104,15 +172,13 @@ impl Death {
 pub struct Round {
     pub winner: Team,
     pub length: f32,
-    pub end_tick: DemoTick,
 }
 
-impl Round {
-    pub fn from_event(event: &TeamPlayRoundWinEvent, end_tick: DemoTick) -> Self {
+impl From<&TeamPlayRoundWinEvent> for Round {
+    fn from(event: &TeamPlayRoundWinEvent) -> Self {
         Round {
             winner: Team::new(event.team),
             length: event.round_time,
-            end_tick,
         }
     }
 }
@@ -138,27 +204,68 @@ impl From<&Box<ServerInfoMessage>> for ServerInfo {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct PlayerConnectionDetails {
-    pub name: String,
-    pub joins: Vec<DemoTick>,
-    pub leaves: Vec<(DemoTick, String)>,
+#[derive(Debug)]
+pub enum ConnectionEventType {
+    Join,
+    Leave(String),
 }
 
-impl From<&PlayerConnectClientEvent> for PlayerConnectionDetails {
-    fn from(value: &PlayerConnectClientEvent) -> Self {
+#[derive(Debug)]
+pub struct ConnectionEvent {
+    pub user: StableUserId,
+    pub name: String,
+    pub steamid: String,
+    pub value: ConnectionEventType,
+}
+
+impl ConnectionEvent {
+    fn from_conn(value: &PlayerConnectClientEvent, user: StableUserId) -> Self {
         Self {
             name: value.name.to_string(),
-            ..Default::default()
+            steamid: value.network_id.to_string(),
+            value: ConnectionEventType::Join,
+            user,
+        }
+    }
+
+    fn from_dc(value: &PlayerDisconnectEvent, user: StableUserId) -> Self {
+        Self {
+            name: value.name.to_string(),
+            steamid: value.network_id.to_string(),
+            value: ConnectionEventType::Leave(value.reason.to_string()),
+            user,
         }
     }
 }
 
-impl From<&PlayerDisconnectEvent> for PlayerConnectionDetails {
-    fn from(value: &PlayerDisconnectEvent) -> Self {
-        Self {
-            name: value.name.to_string(),
-            ..Default::default()
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChatMessage {
+    pub kind: ChatMessageKind,
+    pub from: String,
+    pub text: String,
+    pub team: Option<Team>,
+}
+
+impl ChatMessage {
+    pub fn from_message(message: &SayText2Message, team: Option<Team>) -> Self {
+        ChatMessage {
+            kind: message.kind,
+            from: message
+                .from
+                .as_ref()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            text: message.plain_text(),
+            team,
+        }
+    }
+
+    pub fn from_text(message: &TextMessage) -> Self {
+        ChatMessage {
+            kind: ChatMessageKind::Empty,
+            from: String::new(),
+            text: message.plain_text(),
+            team: None,
         }
     }
 }
@@ -168,17 +275,38 @@ pub struct Analyser {
     state: MatchState,
 }
 
+#[derive(Debug)]
+pub enum MatchEventType {
+    Kill(Death),
+    RoundEnd(Round),
+    Chat(ChatMessage),
+    Connection(ConnectionEvent),
+}
+
+#[derive(Debug)]
+pub struct MatchEvent {
+    pub tick: DemoTick,
+    pub value: MatchEventType,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StableUserId(usize);
+
+impl From<usize> for StableUserId {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct MatchState {
-    pub chat: Vec<ChatMessage>,
-    pub users: BTreeMap<UserId, UserInfo>,
+    pub users: Vec<UserInfo>,
     pub votes: BTreeMap<u32, Vote>,
-    pub deaths: Vec<Death>,
-    pub rounds: Vec<Round>,
     pub start_tick: ServerTick,
     pub server_info: ServerInfo,
-    pub connections: BTreeMap<String, PlayerConnectionDetails>,
     pub end_tick: DemoTick,
+
+    pub events: Vec<MatchEvent>,
 }
 
 impl MessageHandler for Analyser {
@@ -243,24 +371,49 @@ impl Analyser {
         Self::default()
     }
 
+    fn stable_user(
+        &mut self,
+        crit: impl Fn(&UserInfo) -> bool,
+        ins: impl FnOnce() -> UserInfo,
+    ) -> StableUserId {
+        self.state
+            .users
+            .iter()
+            .position(crit)
+            .unwrap_or_else(|| {
+                let idx = self.state.users.len();
+                self.state.users.push(ins());
+                idx
+            })
+            .into()
+    }
+
     fn handle_user_message(&mut self, message: &UserMessage, tick: DemoTick) {
         match message {
             UserMessage::SayText2(text_message) => {
+                let team = self
+                    .state
+                    .users
+                    .iter()
+                    .find(|u| u.entity_id == Some(text_message.client))
+                    .map(|ui| ui.last_team());
                 if text_message.kind == ChatMessageKind::NameChange {
                     if let Some(from) = text_message.from.clone() {
                         self.change_name(from.into(), text_message.plain_text());
                     }
                 } else {
-                    self.state
-                        .chat
-                        .push(ChatMessage::from_message(text_message, tick));
+                    self.state.events.push(MatchEvent {
+                        tick: tick,
+                        value: MatchEventType::Chat(ChatMessage::from_message(&text_message, team)),
+                    });
                 }
             }
             UserMessage::Text(text_message) => {
                 if text_message.location == HudTextLocation::PrintTalk {
-                    self.state
-                        .chat
-                        .push(ChatMessage::from_text(text_message, tick));
+                    self.state.events.push(MatchEvent {
+                        tick: tick,
+                        value: MatchEventType::Chat(ChatMessage::from_text(&text_message)),
+                    });
                 }
             }
             _ => {}
@@ -268,8 +421,13 @@ impl Analyser {
     }
 
     fn change_name(&mut self, from: String, to: String) {
-        if let Some(user) = self.state.users.values_mut().find(|user| user.name == from) {
-            user.name = to;
+        if let Some(user) = self
+            .state
+            .users
+            .iter_mut()
+            .find(|user| user.name.as_ref().map_or(false, |n| *n == from))
+        {
+            user.name = Some(to);
         }
     }
 
@@ -277,22 +435,36 @@ impl Analyser {
         const WIN_REASON_TIME_LIMIT: u8 = 6;
 
         match event {
-            GameEvent::PlayerDeath(event) => self.state.deaths.push(Death::from_event(event, tick)),
+            GameEvent::PlayerDeath(event) => {
+                let value = MatchEventType::Kill(Death::from_event(event, self));
+                self.state.events.push(MatchEvent { tick: tick, value });
+            }
             GameEvent::TeamPlayRoundWin(event) => {
                 if event.win_reason != WIN_REASON_TIME_LIMIT {
-                    self.state.rounds.push(Round::from_event(event, tick))
+                    self.state.events.push(MatchEvent {
+                        tick,
+                        value: MatchEventType::RoundEnd(event.into()),
+                    });
                 }
+            }
+            GameEvent::TeamPlayTeamBalancedPlayer(bal) => {
+                //dbg!(bal);
             }
             GameEvent::PlayerSpawn(spawn) => {
                 let spawn = Spawn::from_event(spawn, tick);
-                if let Some(player) = self.state.users.get_mut(&spawn.user) {
-                    if player.classes.is_empty() || player.classes.last().unwrap().1 != spawn.class
-                    {
-                        player.classes.push((tick, spawn.class));
-                    }
-                    if player.team.is_empty() || player.team.last().unwrap().1 != spawn.team {
-                        player.team.push((tick, spawn.team));
-                    }
+                let suid = self.stable_user(
+                    |u| u.user_id == spawn.user,
+                    || UserInfo {
+                        user_id: spawn.user,
+                        ..Default::default()
+                    },
+                );
+                let player = self.state.users.get_mut(suid.0).unwrap();
+                if player.classes.is_empty() || player.classes.last().unwrap().1 != spawn.class {
+                    player.classes.push((tick, spawn.class));
+                }
+                if player.team.is_empty() || player.team.last().unwrap().1 != spawn.team {
+                    player.team.push((tick, spawn.team));
                 }
             }
             GameEvent::VoteStarted(vote) => {
@@ -315,9 +487,9 @@ impl Analyser {
                     if let Some(player) = self
                         .state
                         .users
-                        .values()
-                        .find(|u| u.entity_id == cast.entity_id)
-                        .map(|u| u.name.clone())
+                        .iter()
+                        .find(|u| u.entity_id == Some(cast.entity_id.into()))
+                        .map(|u| u.name.clone().unwrap_or_default())
                     {
                         v.votes
                             .push((tick, player.clone(), cast.vote_option.into()));
@@ -328,14 +500,20 @@ impl Analyser {
                                 _ => (),
                             }
                         }
+                    } else {
+                        v.votes.push((
+                            tick,
+                            "-- Unknown Player --".to_owned(),
+                            cast.vote_option.into(),
+                        ));
                     }
                 });
             }
             GameEvent::VoteFailed(fail) => {
-                dbg!(fail);
+                //dbg!(fail);
             }
             GameEvent::VotePassed(pass) => {
-                dbg!(pass);
+                //dbg!(pass);
             }
             GameEvent::VoteOptions(options) => {
                 let mut opts = vec![
@@ -357,10 +535,10 @@ impl Analyser {
                     });
             }
             GameEvent::VoteChanged(change) => {
-                dbg!(change);
+                //dbg!(change);
             }
             GameEvent::VoteEnded(end) => {
-                dbg!(end);
+                //dbg!(end);
             }
             GameEvent::PartyChat(chat) => {
                 //dbg!(chat);
@@ -370,24 +548,38 @@ impl Analyser {
                 if id == "BOT" {
                     id.push_str(&format!(" {}", conn.user_id));
                 }
-                self.state
-                    .connections
-                    .entry(id)
-                    .or_insert_with(|| conn.into())
-                    .joins
-                    .push(tick);
+                let suid = self.stable_user(
+                    |u| u.user_id == Into::<UserId>::into(conn.user_id),
+                    || UserInfo {
+                        user_id: conn.user_id.into(),
+                        steam_id: Some(conn.network_id.to_string()),
+                        name: Some(conn.name.to_string()),
+                        ..Default::default()
+                    },
+                );
+                self.state.events.push(MatchEvent {
+                    tick,
+                    value: MatchEventType::Connection(ConnectionEvent::from_conn(conn, suid)),
+                });
             }
             GameEvent::PlayerDisconnect(discon) => {
                 let mut id = discon.network_id.to_string();
                 if id == "BOT" {
                     id.push_str(&format!(" {}", discon.user_id));
                 }
-                self.state
-                    .connections
-                    .entry(id)
-                    .or_insert_with(|| discon.into())
-                    .leaves
-                    .push((tick, discon.reason.to_string()));
+                let suid = self.stable_user(
+                    |u| u.user_id == Into::<UserId>::into(discon.user_id),
+                    || UserInfo {
+                        user_id: discon.user_id.into(),
+                        steam_id: Some(discon.network_id.to_string()),
+                        name: Some(discon.name.to_string()),
+                        ..Default::default()
+                    },
+                );
+                self.state.events.push(MatchEvent {
+                    tick,
+                    value: MatchEventType::Connection(ConnectionEvent::from_dc(discon, suid)),
+                });
             }
             _ => {}
         }
@@ -403,31 +595,22 @@ impl Analyser {
             tf_demo_parser::demo::data::UserInfo::parse_from_string_table(index as u16, text, data)?
         {
             if user_info.player_info.steam_id == "BOT" {
-                self.state
-                    .users
-                    .entry(user_info.player_info.user_id)
-                    .and_modify(|u| u.entity_id = user_info.entity_id)
-                    .or_insert_with(|| user_info.into());
+                let suid = self.stable_user(
+                    |u| u.user_id == user_info.player_info.user_id,
+                    || (&user_info).into(),
+                );
+                self.state.users.get_mut(suid.0).unwrap().entity_id = Some(user_info.entity_id);
             } else {
-                if let Some(uid) = self
-                    .state
-                    .users
-                    .iter()
-                    .find(|e| e.1.steam_id == user_info.player_info.steam_id)
-                    .map(|e| e.0.clone())
-                {
-                    if user_info.player_info.user_id == uid {
-                        self.state.users.get_mut(&uid).unwrap().entity_id = user_info.entity_id;
-                    } else {
-                        let mut uif = self.state.users.remove(&uid).unwrap();
-                        uif.entity_id = user_info.entity_id;
-                        self.state.users.insert(user_info.player_info.user_id, uif);
-                    }
-                } else {
-                    self.state
-                        .users
-                        .insert(user_info.player_info.user_id, user_info.into());
-                }
+                let suid = self.stable_user(
+                    |u| {
+                        u.steam_id == Some(user_info.player_info.steam_id.clone())
+                            || u.name == Some(user_info.player_info.name.clone())
+                    },
+                    || (&user_info).into(),
+                );
+                let player = self.state.users.get_mut(suid.0).unwrap();
+                player.entity_id = Some(user_info.entity_id);
+                player.user_id = user_info.player_info.user_id;
             }
         }
 
