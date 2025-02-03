@@ -37,7 +37,7 @@ pub struct Demo {
     pub events: Vec<Event>,
     pub notes: Option<String>,
     pub metadata: Option<Metadata>,
-    pub inspection: Option<Arc<tf_demo_parser::MatchState>>,
+    pub inspection: Option<Arc<crate::analyser::MatchState>>,
 }
 
 impl Demo {
@@ -84,10 +84,13 @@ impl Demo {
             .ok();
     }
 
-    pub async fn full_analysis(&mut self) -> Result<Arc<tf_demo_parser::MatchState>> {
+    pub async fn full_analysis(&mut self) -> Result<Arc<crate::analyser::MatchState>> {
         let f = fs::read(&self.path).await?;
         let demo = tf_demo_parser::Demo::new(&f);
-        let parser = tf_demo_parser::DemoParser::new(demo.get_stream());
+        let parser = tf_demo_parser::DemoParser::new_with_analyser(
+            demo.get_stream(),
+            crate::analyser::Analyser::new(),
+        );
 
         let (_, state) = parser.parse()?;
         self.inspection = Some(Arc::new(state));
@@ -148,11 +151,7 @@ impl Demo {
             .unwrap_or(Demo::TICKRATE)
     }
 
-    pub async fn convert_to_replay(
-        &mut self,
-        replays_folder: &Path,
-        title: &str,
-    ) -> Result<()> {
+    pub async fn convert_to_replay(&mut self, replays_folder: &Path, title: &str) -> Result<()> {
         create_replay_index_file(replays_folder).await?;
 
         let replay_demo_path = replays_folder.join(&self.filename);

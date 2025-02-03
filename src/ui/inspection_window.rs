@@ -1,15 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::analyser::MatchState;
 use crate::demo_manager::Demo;
 use adw::prelude::*;
 use anyhow::Result;
 use gtk::glib::markup_escape_text;
 use itertools::Itertools;
 use relm4::prelude::*;
-use tf_demo_parser::{
-    demo::{message::usermessage::ChatMessageKind, parser::analyser::Team},
-    MatchState,
-};
+use tf_demo_parser::demo::{message::usermessage::ChatMessageKind, parser::analyser::Team};
 
 use super::ui_util;
 
@@ -65,17 +63,17 @@ impl Component for InspectionModel {
                                 .build();
 
                             model.insp.as_ref().inspect(|ms|{
-                                for user in ms.users.values().sorted_by(|a,b|TEAM_ORDERING[&a.team].cmp(&TEAM_ORDERING[&b.team])){
+                                for user in ms.users.values().sorted_by(|a,b|TEAM_ORDERING[&a.last_team()].cmp(&TEAM_ORDERING[&b.last_team()])){
                                     let row = adw::ActionRow::new();
 
                                     let sid64 = crate::util::steamid_32_to_64(&user.steam_id).unwrap_or_else(||{user.steam_id.clone()});
-                                    let color = match &user.team {
+                                    let color = match &user.last_team() {
                                         Team::Spectator | Team::Other => "848484",
                                         Team::Red => "e04a4a",
                                         Team::Blue => "3449d1",
                                     };
                                     row.set_title(&format!("<span foreground=\"#{color}\">{}</span>", markup_escape_text(&user.name)));
-                                    row.set_subtitle(&format!("{}, {}", user.team, sid64));
+                                    row.set_subtitle(&format!("{}, {}", user.last_team(), sid64));
                                     row.set_subtitle_selectable(true);
 
                                     let open_btn = gtk::Button::builder()
