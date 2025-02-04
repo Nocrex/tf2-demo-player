@@ -7,7 +7,7 @@ use relm4::prelude::*;
 use crate::demo_manager::Demo;
 use crate::demo_manager::Event;
 use crate::settings::Settings;
-use crate::ui::event_list::EventListModel;
+use super::event_list::EventListModel;
 
 use super::controls::ControlsModel;
 use super::controls::ControlsMsg;
@@ -21,7 +21,7 @@ use super::event_dialog::EventDialogOut;
 use super::event_dialog::EventDialogParams;
 use super::event_list::EventListMsg;
 use super::event_list::EventListOut;
-use super::window::RconAction;
+use super::RconAction;
 
 #[derive(Debug)]
 pub enum InfoPaneOut {

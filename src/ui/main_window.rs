@@ -8,20 +8,29 @@ use relm4::actions::RelmActionGroup;
 use relm4::prelude::*;
 
 use crate::demo_manager::Event;
-use crate::ui::about::AboutMsg;
-use crate::ui::demo_list::*;
-use crate::ui::info_pane::InfoPaneMsg;
+use crate::ui::about_window::AboutMsg;
+use demo_list::*;
+use info_pane::InfoPaneMsg;
 use crate::ui::settings_window::*;
-use crate::ui::ui_util;
+use crate::ui::util;
 use crate::{
     demo_manager::{Demo, DemoManager},
     rcon_manager::RconManager,
     settings::Settings,
 };
 
-use super::about::AboutModel;
-use super::info_pane::InfoPaneModel;
-use super::info_pane::InfoPaneOut;
+use super::about_window::AboutModel;
+use info_pane::InfoPaneModel;
+use info_pane::InfoPaneOut;
+
+mod demo_infobox;
+mod demo_list;
+mod event_list;
+mod info_pane;
+mod controls;
+mod event_dialog;
+mod event_object;
+mod demo_object;
 
 #[derive(Debug)]
 pub enum RconAction {
@@ -255,7 +264,7 @@ impl AsyncComponent for DemoPlayerModel {
             .await
             .inspect_err(|e| log::warn!("Failed to fetch newest version: {e:?}"))
         {
-            ui_util::notice_dialog(
+            util::notice_dialog(
                 &root,
                 &format!("New version available ({} -> {ver})", env!("CARGO_PKG_VERSION")),
                 &format!("Visit the <a href=\"http://github.com/Nocrex/tf2-demo-player/releases/latest\">releases section</a> to download it"),
@@ -288,7 +297,7 @@ impl AsyncComponent for DemoPlayerModel {
             }
             DemoPlayerMsg::CleanReplays => 'replay_clean: {
                 if self.settings.borrow().tf_folder_path.is_none() {
-                    ui_util::notice_dialog(
+                    util::notice_dialog(
                         root,
                         "TF2 folder path not set up",
                         "Please check your TF2 folder setting",
@@ -300,18 +309,18 @@ impl AsyncComponent for DemoPlayerModel {
                 )
                 .await;
                 if let Err(e) = obsoletes {
-                    ui_util::notice_dialog(root, "Error while loading replays", &e.to_string());
+                    util::notice_dialog(root, "Error while loading replays", &e.to_string());
                 } else if let Ok(obsolete_dmx_files) = obsoletes {
                     if obsolete_dmx_files.is_empty() {
-                        ui_util::notice_dialog(root, "No replays to clean", "");
+                        util::notice_dialog(root, "No replays to clean", "");
                     } else {
-                        if ui_util::delete_dialog(root, obsolete_dmx_files.len()).await {
+                        if util::delete_dialog(root, obsolete_dmx_files.len()).await {
                             let res = async_std::task::spawn_blocking(|| {
                                 trash::delete_all(obsolete_dmx_files)
                             })
                             .await;
                             if let Err(e) = res {
-                                ui_util::notice_dialog(
+                                util::notice_dialog(
                                     root,
                                     "Error cleaning demos",
                                     &e.to_string(),
@@ -416,7 +425,7 @@ impl AsyncComponent for DemoPlayerModel {
             }
             DemoPlayerMsg::DeleteSelected => {
                 let count = self.demo_list.model().get_selected_demos().len();
-                if ui_util::delete_dialog(root, count).await {
+                if util::delete_dialog(root, count).await {
                     for d in self.demo_list.model().get_selected_demos() {
                         self.demo_manager.delete_demo(&d).await;
                     }

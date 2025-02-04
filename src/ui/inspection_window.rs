@@ -9,7 +9,7 @@ use itertools::Itertools;
 use relm4::prelude::*;
 use tf_demo_parser::demo::{message::usermessage::ChatMessageKind, parser::analyser::Team};
 
-use super::ui_util;
+use super::util;
 
 pub struct InspectionModel {
     insp: Option<Arc<MatchState>>,
@@ -219,7 +219,7 @@ impl Component for InspectionModel {
         root: &Self::Root,
     ) {
         if let Err(e) = &message {
-            ui_util::notice_dialog(
+            util::notice_dialog(
                 &root,
                 "An error occured while parsing the demo",
                 &e.to_string(),

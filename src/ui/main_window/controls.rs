@@ -10,10 +10,10 @@ use crate::settings::Settings;
 use crate::util::sec_to_timestamp;
 use crate::util::ticks_to_sec;
 
-use super::inspection_window::InspectionModel;
-use super::inspection_window::InspectionOut;
-use super::ui_util;
-use super::window::RconAction;
+use super::super::inspection_window::InspectionModel;
+use super::super::inspection_window::InspectionOut;
+use super::util;
+use super::super::main_window::RconAction;
 
 #[derive(Debug)]
 pub enum ControlsOut {
@@ -292,7 +292,7 @@ impl AsyncComponent for ControlsModel {
             ControlsMsg::ConvertReplay => 'replay: {
                 if let Some(demo) = &mut self.demo {
                     if self.settings.borrow().tf_folder_path.is_none() {
-                        ui_util::notice_dialog(
+                        util::notice_dialog(
                             &self.window,
                             "TF2 folder path not set up",
                             "Please check your TF2 folder setting",
@@ -307,7 +307,7 @@ impl AsyncComponent for ControlsModel {
                         .unwrap()
                         .into();
                     if !tf_folder_path.is_dir().await {
-                        ui_util::notice_dialog(
+                        util::notice_dialog(
                             &self.window,
                             "TF2 folder does not exist or cannot be accessed",
                             "Please check your TF2 folder setting",
@@ -322,7 +322,7 @@ impl AsyncComponent for ControlsModel {
                         .unwrap()
                         .into();
                     if !replay_folder.is_dir().await {
-                        ui_util::notice_dialog(
+                        util::notice_dialog(
                             &self.window,
                             "Replay folder does not exist or cannot be accessed",
                             &format!(
@@ -333,10 +333,10 @@ impl AsyncComponent for ControlsModel {
                         break 'replay;
                     }
                     if demo.has_replay(&replay_folder).await {
-                        ui_util::notice_dialog(&self.window, "Demo already converted", "");
+                        util::notice_dialog(&self.window, "Demo already converted", "");
                         break 'replay;
                     }
-                    if let Some(title) = ui_util::entry_dialog(
+                    if let Some(title) = util::entry_dialog(
                         &self.window,
                         "Replay title",
                         "Title to save the replay under",
@@ -345,12 +345,12 @@ impl AsyncComponent for ControlsModel {
                     .await
                     {
                         match demo.convert_to_replay(&replay_folder, &title).await {
-                            Ok(_) => ui_util::notice_dialog(
+                            Ok(_) => util::notice_dialog(
                                 &self.window,
                                 "Replay created successfully",
                                 "",
                             ),
-                            Err(e) => ui_util::notice_dialog(
+                            Err(e) => util::notice_dialog(
                                 &self.window,
                                 "Failed to create replay",
                                 &e.to_string(),

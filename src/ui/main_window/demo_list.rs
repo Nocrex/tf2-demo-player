@@ -8,7 +8,7 @@ use gtk::gio;
 use relm4::prelude::*;
 
 use crate::demo_manager::Demo;
-use crate::ui::demo_object::DemoObject;
+use super::demo_object::DemoObject;
 
 pub struct DemoListModel {
     list_model: gio::ListStore,

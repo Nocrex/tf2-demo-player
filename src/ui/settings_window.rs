@@ -208,7 +208,7 @@ impl Component for PreferencesModel {
             }
             PreferencesCmd::FolderBrowseResult(path) => {
                 if !path.join("tf").is_dir() {
-                    crate::ui::ui_util::notice_dialog(
+                    crate::ui::util::notice_dialog(
                         &self.parent,
                         "Possibly invalid folder selected",
                         "Please select the folder named \"Team Fortress 2\", which contains the tf2 exe",
