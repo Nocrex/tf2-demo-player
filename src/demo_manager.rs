@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_std::{
     fs,
+    io::ReadExt,
     path::{Path, PathBuf},
     task,
 };
@@ -58,22 +59,43 @@ impl Demo {
         if let Some(_) = self.header {
             return;
         }
-        {
-            let f = fs::read(&self.path).await.unwrap();
-
-            let demo = tf_demo_parser::Demo::new(&f);
-            self.header = Header::read(&mut demo.get_stream()).map_or(None, |r| Some(r));
+        self.header = match async {
+            let mut header = [0; 1240];
+            let mut f = fs::File::open(&self.path).await?;
+            f.read_exact(&mut header).await?;
+            let demo = tf_demo_parser::Demo::new(&header);
+            anyhow::Ok(Header::read(&mut demo.get_stream())?)
         }
+        .await
+        {
+            Ok(header) => Some(header),
+            Err(e) => {
+                log::warn!(
+                    "Couldn't read demo header for {}, {}",
+                    self.path.display(),
+                    e
+                );
+                None
+            }
+        };
 
         let mut bookmark_file = self.path.clone();
         bookmark_file.set_extension("json");
 
         let file = fs::read(bookmark_file).await;
         if let Ok(char_bytes) = file {
-            let parsed: EventContainer = serde_json::from_slice(&char_bytes).unwrap();
-            self.events = parsed.events;
-            self.events.sort_by_key(|e| e.tick);
-            self.notes = parsed.notes;
+            match serde_json::from_slice::<EventContainer>(&char_bytes) {
+                Ok(parsed) => {
+                    self.events = parsed.events;
+                    self.events.sort_by_key(|e| e.tick);
+                    self.notes = parsed.notes;
+                }
+                Err(e) => log::warn!(
+                    "Failed to parse event file for {}, {}",
+                    self.path.display(),
+                    e
+                ),
+            }
         }
 
         self.metadata = fs::metadata(&self.path)

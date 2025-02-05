@@ -543,9 +543,6 @@ impl Analyser {
                         ..Default::default()
                     });
             }
-            GameEvent::PartyChat(chat) => {
-                //dbg!(chat);
-            }
             GameEvent::PlayerConnectClient(conn) => {
                 let mut id = conn.network_id.to_string();
                 if id == "BOT" {
