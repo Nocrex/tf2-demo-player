@@ -60,7 +60,7 @@ impl Demo {
             return;
         }
         self.header = match async {
-            let mut header = [0; 1240];
+            let mut header = [0; 1080];
             let mut f = fs::File::open(&self.path).await?;
             f.read_exact(&mut header).await?;
             let demo = tf_demo_parser::Demo::new(&header);
