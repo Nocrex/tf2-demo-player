@@ -12,13 +12,13 @@ use crate::util::ticks_to_sec;
 
 use super::super::inspection_window::InspectionModel;
 use super::super::inspection_window::InspectionOut;
-use super::util;
 use super::super::main_window::RconAction;
+use super::util;
 
 #[derive(Debug)]
 pub enum ControlsOut {
     Rcon(RconAction),
-    Inspect(String),
+    DemoInspected(Demo),
 
     SaveChanges,
     DiscardChanges,
@@ -38,6 +38,7 @@ pub enum ControlsMsg {
     SeekBackward,
     ConvertReplay,
     InspectDemo,
+    DemoInspected(Demo),
 
     SaveChanges,
     DiscardChanges,
@@ -219,6 +220,7 @@ impl AsyncComponent for ControlsModel {
                 sender.input_sender(),
                 |msg| match msg {
                     InspectionOut::GotoTick(tick) => ControlsMsg::PlayheadMoved(tick.into()),
+                    InspectionOut::DemoProcessed(dem) => ControlsMsg::DemoInspected(dem),
                 },
             ),
         };
@@ -345,11 +347,9 @@ impl AsyncComponent for ControlsModel {
                     .await
                     {
                         match demo.convert_to_replay(&replay_folder, &title).await {
-                            Ok(_) => util::notice_dialog(
-                                &self.window,
-                                "Replay created successfully",
-                                "",
-                            ),
+                            Ok(_) => {
+                                util::notice_dialog(&self.window, "Replay created successfully", "")
+                            }
                             Err(e) => util::notice_dialog(
                                 &self.window,
                                 "Failed to create replay",
@@ -360,9 +360,6 @@ impl AsyncComponent for ControlsModel {
                 }
             }
             ControlsMsg::InspectDemo => {
-                /*let _ = sender.output(ControlsOut::Inspect(
-                    self.demo.as_ref().unwrap().filename.clone(),
-                ));*/
                 let demo_clone = self.demo.clone().unwrap();
                 self.inspection_wnd.emit(demo_clone);
             }
@@ -375,6 +372,16 @@ impl AsyncComponent for ControlsModel {
                 self.dirty = false;
             }
             ControlsMsg::SetDirty(state) => self.dirty = state,
+            ControlsMsg::DemoInspected(dem) => {
+                if self
+                    .demo
+                    .as_ref()
+                    .map_or(false, |d| d.filename == dem.filename)
+                {
+                    self.demo = Some(dem.clone());
+                }
+                let _ = sender.output(ControlsOut::DemoInspected(dem));
+            }
         }
         self.update_view(widgets, sender);
     }

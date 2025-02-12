@@ -9,8 +9,6 @@ use relm4::prelude::*;
 
 use crate::demo_manager::Event;
 use crate::ui::about_window::AboutMsg;
-use demo_list::*;
-use info_pane::InfoPaneMsg;
 use crate::ui::settings_window::*;
 use crate::ui::util;
 use crate::{
@@ -18,19 +16,21 @@ use crate::{
     rcon_manager::RconManager,
     settings::Settings,
 };
+use demo_list::*;
+use info_pane::InfoPaneMsg;
 
 use super::about_window::AboutModel;
 use info_pane::InfoPaneModel;
 use info_pane::InfoPaneOut;
 
+mod controls;
 mod demo_infobox;
 mod demo_list;
-mod event_list;
-mod info_pane;
-mod controls;
-mod event_dialog;
-mod event_object;
 mod demo_object;
+mod event_dialog;
+mod event_list;
+mod event_object;
+mod info_pane;
 
 #[derive(Debug)]
 pub enum RconAction {
@@ -60,6 +60,7 @@ pub enum DemoPlayerMsg {
     PlayDemoDblclck(String),
     DemoSelected(Option<String>, bool),
     DemoSave(Demo),
+    DemoUpdate(Demo),
 }
 
 relm4::new_action_group!(AppMenu, "app-menu");
@@ -192,6 +193,7 @@ impl AsyncComponent for DemoPlayerModel {
             .forward(sender.input_sender(), |msg| match msg {
                 InfoPaneOut::Rcon(act) => DemoPlayerMsg::Rcon(act),
                 InfoPaneOut::Save(demo) => DemoPlayerMsg::DemoSave(demo),
+                InfoPaneOut::Update(demo) => DemoPlayerMsg::DemoUpdate(demo),
             });
 
         let about_wnd = AboutModel::builder().launch(root.clone()).detach();
@@ -285,7 +287,6 @@ impl AsyncComponent for DemoPlayerModel {
         sender: AsyncComponentSender<Self>,
         root: &Self::Root,
     ) {
-        log::debug!("{:?}", message);
         match message {
             DemoPlayerMsg::DeleteUnfinished => {
                 self.demo_manager.delete_empty_demos().await;
@@ -320,11 +321,7 @@ impl AsyncComponent for DemoPlayerModel {
                             })
                             .await;
                             if let Err(e) = res {
-                                util::notice_dialog(
-                                    root,
-                                    "Error cleaning demos",
-                                    &e.to_string(),
-                                );
+                                util::notice_dialog(root, "Error cleaning demos", &e.to_string());
                             }
                         };
                     }
@@ -444,6 +441,11 @@ impl AsyncComponent for DemoPlayerModel {
                 self.demo_manager.get_demos_mut().insert(name.clone(), demo);
                 sender.input(DemoPlayerMsg::DemoSelected(Some(name), true));
                 sender.input(DemoPlayerMsg::DemosChanged(false));
+            }
+            DemoPlayerMsg::DemoUpdate(demo) => {
+                self.demo_manager
+                    .get_demos_mut()
+                    .insert(demo.filename.clone(), demo);
             }
         }
     }

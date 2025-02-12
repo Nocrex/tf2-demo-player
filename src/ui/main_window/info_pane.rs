@@ -4,10 +4,10 @@ use std::rc::Rc;
 use adw::prelude::*;
 use relm4::prelude::*;
 
+use super::event_list::EventListModel;
 use crate::demo_manager::Demo;
 use crate::demo_manager::Event;
 use crate::settings::Settings;
-use super::event_list::EventListModel;
 
 use super::controls::ControlsModel;
 use super::controls::ControlsMsg;
@@ -27,6 +27,8 @@ use super::RconAction;
 pub enum InfoPaneOut {
     Rcon(RconAction),
     Save(Demo),
+
+    Update(Demo),
 }
 
 #[derive(Debug)]
@@ -42,6 +44,8 @@ pub enum InfoPaneMsg {
     PlayheadMoved(u32),
     AddEvent,
     EditEvent(Event),
+
+    DemoInspected(Demo),
 }
 
 pub struct InfoPaneModel {
@@ -96,7 +100,7 @@ impl Component for InfoPaneModel {
                 .launch(init.clone())
                 .forward(sender.input_sender(), |msg| match msg {
                     ControlsOut::Rcon(act) => InfoPaneMsg::Rcon(act),
-                    ControlsOut::Inspect(name) => todo!(),
+                    ControlsOut::DemoInspected(dem) => InfoPaneMsg::DemoInspected(dem),
 
                     ControlsOut::SaveChanges => InfoPaneMsg::SaveChanges,
                     ControlsOut::DiscardChanges => InfoPaneMsg::DiscardChanges,
@@ -195,6 +199,16 @@ impl Component for InfoPaneModel {
                     .and_then(|d| d.header.as_ref())
                     .map_or(u32::MAX, |h| h.ticks);
                 self.event_dialog.emit(EventDialogMsg::Show(params))
+            }
+            InfoPaneMsg::DemoInspected(dem) => {
+                if self
+                    .demo
+                    .as_ref()
+                    .map_or(false, |d| d.filename == dem.filename)
+                {
+                    self.demo = Some(dem.clone());
+                }
+                let _ = sender.output(InfoPaneOut::Update(dem));
             }
         }
     }

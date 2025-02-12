@@ -4,6 +4,7 @@ use crate::analyser::{MatchEventType, MatchState};
 use crate::demo_manager::Demo;
 use adw::prelude::*;
 use anyhow::Result;
+use async_std::path::Path;
 use gtk::glib::markup_escape_text;
 use itertools::Itertools;
 use relm4::prelude::*;
@@ -12,13 +13,13 @@ use tf_demo_parser::demo::{message::usermessage::ChatMessageKind, parser::analys
 use super::util;
 
 pub struct InspectionModel {
-    insp: Option<Arc<MatchState>>,
-    tps: f32,
+    demo: Demo,
 }
 
 #[derive(Debug)]
 pub enum InspectionOut {
     GotoTick(u32),
+    DemoProcessed(Demo),
 }
 
 lazy_static::lazy_static! {
@@ -48,7 +49,7 @@ impl Component for InspectionModel {
 
                     pack_start = &gtk::Spinner{
                         #[watch]
-                        set_spinning: model.insp.is_none(),
+                        set_spinning: model.demo.inspection.is_none(),
                     }
                 },
 
@@ -62,7 +63,7 @@ impl Component for InspectionModel {
                                 .homogeneous(true)
                                 .build();
 
-                            model.insp.as_ref().inspect(|ms|{
+                            model.demo.inspection.as_ref().inspect(|ms|{
                                 for user in ms.users.iter().sorted_by(|a,b|TEAM_ORDERING[&a.last_team()].cmp(&TEAM_ORDERING[&b.last_team()])){
                                     let row = adw::ActionRow::new();
 
@@ -106,7 +107,7 @@ impl Component for InspectionModel {
                                 .build();
 
 
-                            model.insp.as_ref().inspect(|ms|{
+                            model.demo.inspection.as_ref().inspect(|ms|{
                                 ms.events.iter().filter(|me|matches!(me.value, MatchEventType::Chat(_))).for_each(|me|{
                                     let chat = match &me.value {
                                         MatchEventType::Chat(c) => c,
@@ -137,7 +138,7 @@ impl Component for InspectionModel {
                                     row.set_title(&markup_escape_text(&chat.text));
                                     row.set_subtitle(&format!("{}<span foreground=\"#{color}\">{}</span>", kind, markup_escape_text(&chat.from).as_str()));
 
-                                    row.add_suffix(&gtk::Label::new(Some(&format!("{} ({})", crate::util::ticks_to_timestamp(me.tick.into(), model.tps), me.tick))));
+                                    row.add_suffix(&gtk::Label::new(Some(&format!("{} ({})", crate::util::ticks_to_timestamp(me.tick.into(), model.demo.tps()), me.tick))));
 
                                     let copy_btn = gtk::Button::builder().icon_name(relm4_icons::icon_names::COPY).tooltip_text("Copy message").has_frame(false).build();
                                     let copy_txt = format!("{}{}: {}", kind, chat.from, chat.text);
@@ -166,19 +167,6 @@ impl Component for InspectionModel {
                         set_icon_name: Some(relm4_icons::icon_names::CHAT_BUBBLES_TEXT),
                     },
 
-                    add = &gtk::ScrolledWindow{
-                        #[wrap(Some)]
-                        set_child = &gtk::TextView{
-                            set_editable: false,
-                            #[wrap(Some)]
-                            set_buffer = &gtk::TextBuffer{
-                                #[watch]
-                                set_text: &model.insp.as_ref().map_or("".to_owned(),|i|format!("{:#?}", i))
-                            }
-                        }
-                    } -> {
-                        set_title: Some("Dump")
-                    }
                 }
             }
         }
@@ -190,8 +178,7 @@ impl Component for InspectionModel {
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         let model = InspectionModel {
-            insp: None,
-            tps: Demo::TICKRATE,
+            demo: Demo::new(Path::new("null.dem")),
         };
 
         let widgets = view_output!();
@@ -205,17 +192,18 @@ impl Component for InspectionModel {
         sender: ComponentSender<Self>,
         root: &Self::Root,
     ) -> () {
-        let mut message = message;
-        self.tps = message.tps();
-        self.insp = None;
-        sender.oneshot_command(async move { message.full_analysis().await });
+        self.demo = message;
+        if self.demo.inspection.is_none() {
+            let mut dem = self.demo.clone();
+            sender.oneshot_command(async move { dem.full_analysis().await });
+        }
         root.present();
     }
 
     fn update_cmd(
         &mut self,
         message: Self::CommandOutput,
-        _sender: ComponentSender<Self>,
+        sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
         if let Err(e) = &message {
@@ -225,6 +213,9 @@ impl Component for InspectionModel {
                 &e.to_string(),
             );
         }
-        self.insp = message.ok();
+        self.demo.inspection = message.ok();
+        if self.demo.inspection.is_some() {
+            let _ = sender.output(InspectionOut::DemoProcessed(self.demo.clone()));
+        }
     }
 }
