@@ -55,7 +55,7 @@ impl From<&tf_demo_parser::demo::data::UserInfo> for UserInfo {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Vote {
     pub start_tick: DemoTick,
     pub end_tick: DemoTick,
@@ -72,7 +72,7 @@ impl Vote {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub enum VoteTeam {
     #[default]
     Unknown,
@@ -183,7 +183,7 @@ impl From<&TeamPlayRoundWinEvent> for Round {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ServerInfo {
     pub name: String,
     pub maxplayers: u8,
@@ -204,13 +204,13 @@ impl From<&Box<ServerInfoMessage>> for ServerInfo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ConnectionEventType {
     Join,
     Leave(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConnectionEvent {
     pub user: StableUserId,
     pub name: String,
@@ -291,20 +291,16 @@ fn resolve_string(string: &str) -> &str {
     }
 }
 
-#[derive(Default, Debug)]
-pub struct Analyser {
-    state: MatchState,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MatchEventType {
     Kill(Death),
     RoundEnd(Round),
     Chat(ChatMessage),
     Connection(ConnectionEvent),
+    VoteStarted(Vote),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MatchEvent {
     pub tick: DemoTick,
     pub value: MatchEventType,
@@ -319,15 +315,20 @@ impl From<usize> for StableUserId {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct MatchState {
     pub users: Vec<UserInfo>,
-    pub votes: BTreeMap<u32, Vote>,
-    pub start_tick: ServerTick,
     pub server_info: ServerInfo,
+    pub start_tick: ServerTick,
     pub end_tick: DemoTick,
 
     pub events: Vec<MatchEvent>,
+}
+
+#[derive(Default, Debug)]
+pub struct Analyser {
+    state: MatchState,
+    pub votes: BTreeMap<u32, Vote>,
 }
 
 impl MessageHandler for Analyser {
@@ -377,7 +378,18 @@ impl MessageHandler for Analyser {
     }
 
     fn into_output(self, _state: &ParserState) -> Self::Output {
-        self.state
+        let mut state = self.state;
+        for (_, vote) in self.votes {
+            let ind_start = state.events.partition_point(|e| e.tick >= vote.start_tick);
+            state.events.insert(
+                ind_start,
+                MatchEvent {
+                    tick: vote.start_tick,
+                    value: MatchEventType::VoteStarted(vote),
+                },
+            );
+        }
+        state
     }
 }
 
@@ -486,7 +498,7 @@ impl Analyser {
                 }
             }
             GameEvent::VoteCast(cast) => {
-                self.state.votes.entry(cast.voteidx).and_modify(|v| {
+                self.votes.entry(cast.voteidx).and_modify(|v| {
                     v.end_tick = tick;
                     v.team = match &v.team {
                         VoteTeam::Unknown => VoteTeam::One(Team::new(cast.team)),
@@ -533,15 +545,12 @@ impl Analyser {
                     options.option_5.to_string(),
                 ];
                 opts.retain(|o| !o.is_empty());
-                self.state
-                    .votes
-                    .entry(options.voteidx)
-                    .or_insert_with(|| Vote {
-                        start_tick: tick,
-                        end_tick: tick,
-                        options: opts,
-                        ..Default::default()
-                    });
+                self.votes.entry(options.voteidx).or_insert_with(|| Vote {
+                    start_tick: tick,
+                    end_tick: tick,
+                    options: opts,
+                    ..Default::default()
+                });
             }
             GameEvent::PlayerConnectClient(conn) => {
                 let mut id = conn.network_id.to_string();
