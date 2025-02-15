@@ -28,18 +28,12 @@ use tf_demo_parser::{
 
 #[derive(Debug, Clone, Default)]
 pub struct UserInfo {
-    pub classes: Vec<(DemoTick, Class)>,
+    pub last_class: Option<Class>,
     pub name: Option<String>,
     pub user_id: UserId,
     pub steam_id: Option<String>,
     pub entity_id: Option<EntityId>,
-    pub team: Vec<(DemoTick, Team)>,
-}
-
-impl UserInfo {
-    pub fn last_team(&self) -> Team {
-        self.team.last().map_or(Team::Other, |t| t.1)
-    }
+    pub last_team: Option<Team>,
 }
 
 impl From<&tf_demo_parser::demo::data::UserInfo> for UserInfo {
@@ -49,8 +43,7 @@ impl From<&tf_demo_parser::demo::data::UserInfo> for UserInfo {
             steam_id: Some(info.player_info.steam_id.clone()),
             entity_id: Some(info.entity_id),
             user_id: info.player_info.user_id,
-            classes: Default::default(),
-            team: Default::default(),
+            ..Default::default()
         }
     }
 }
@@ -298,6 +291,8 @@ pub enum MatchEventType {
     Chat(ChatMessage),
     Connection(ConnectionEvent),
     VoteStarted(Vote),
+    TeamSwitch(StableUserId, Team),
+    ClassSwitch(StableUserId, Class),
 }
 
 #[derive(Debug, Clone)]
@@ -429,7 +424,7 @@ impl Analyser {
                     .users
                     .iter()
                     .find(|u| u.entity_id == Some(text_message.client))
-                    .map(|ui| ui.last_team());
+                    .map(|ui| ui.last_team.unwrap_or_default());
                 if text_message.kind == ChatMessageKind::NameChange {
                     if let Some(from) = text_message.from.clone() {
                         self.change_name(from.into(), text_message.plain_text());
@@ -490,11 +485,19 @@ impl Analyser {
                     },
                 );
                 let player = self.state.users.get_mut(suid.0).unwrap();
-                if player.classes.is_empty() || player.classes.last().unwrap().1 != spawn.class {
-                    player.classes.push((tick, spawn.class));
+                if player.last_class.is_none() || player.last_class.unwrap() != spawn.class {
+                    player.last_class = Some(spawn.class);
+                    self.state.events.push(MatchEvent {
+                        tick,
+                        value: MatchEventType::ClassSwitch(suid, spawn.class),
+                    });
                 }
-                if player.team.is_empty() || player.team.last().unwrap().1 != spawn.team {
-                    player.team.push((tick, spawn.team));
+                if player.last_team.is_none() || player.last_team.unwrap() != spawn.team {
+                    player.last_team = Some(spawn.team);
+                    self.state.events.push(MatchEvent {
+                        tick,
+                        value: MatchEventType::TeamSwitch(suid, spawn.team),
+                    });
                 }
             }
             GameEvent::VoteCast(cast) => {

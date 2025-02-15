@@ -188,14 +188,16 @@ impl Component for DemoInfoboxModel {
                 }
 
                 let _ = sender.output(DemoInfoboxOut::Dirty(
-                    new_notes.as_ref() != self.demo.as_ref().and_then(|d| d.notes.as_ref()),
+                        new_notes.as_ref() != self.demo.as_ref().and_then(|d| d.notes.as_ref()),
                 ));
 
                 self.notes = new_notes;
             }
             DemoInfoboxMsg::OpenFolder => {
                 let path = self.demo.as_ref().unwrap().path.as_path();
-                let _ = opener::reveal(path).inspect_err(|e| log::warn!("{}", e));
+                if let Err(e) = opener::reveal(path) {
+                    log::warn!("Failed to show file, {e}");
+                }
             }
         }
         self.update_view(widgets, sender);

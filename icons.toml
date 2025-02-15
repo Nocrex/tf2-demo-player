@@ -9,4 +9,6 @@ icons = [
     "chat-bubbles-text",
     "symbolic-link",
     "copy",
+    "info-outline",
+    "list-large",
 ]

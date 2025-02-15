@@ -150,6 +150,7 @@ impl AsyncComponent for ControlsModel {
 
                     gtk::Separator{
                         set_orientation: gtk::Orientation::Vertical,
+                        add_css_class: "spacer",
                     },
 
                     gtk::Button{
@@ -166,6 +167,7 @@ impl AsyncComponent for ControlsModel {
 
                     gtk::Separator{
                         set_orientation: gtk::Orientation::Vertical,
+                        add_css_class: "spacer",
                     },
 
                     gtk::Button{

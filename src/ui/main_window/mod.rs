@@ -211,6 +211,9 @@ impl AsyncComponent for DemoPlayerModel {
 
         let widgets = view_output!();
 
+        #[cfg(debug_assertions)]
+        widgets.main_window.add_css_class("devel");
+
         {
             let mut group = RelmActionGroup::<AppMenu>::new();
 
