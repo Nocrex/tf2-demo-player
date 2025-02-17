@@ -7,6 +7,7 @@ use relm4_icons::icon_names;
 
 use crate::demo_manager::Demo;
 use crate::settings::Settings;
+use crate::ui::inspection_window::InspectionMsg;
 use crate::util::sec_to_timestamp;
 use crate::util::ticks_to_sec;
 
@@ -363,7 +364,7 @@ impl AsyncComponent for ControlsModel {
             }
             ControlsMsg::InspectDemo => {
                 let demo_clone = self.demo.clone().unwrap();
-                self.inspection_wnd.emit(demo_clone);
+                self.inspection_wnd.emit(InspectionMsg::Inspect(demo_clone));
             }
             ControlsMsg::DiscardChanges => {
                 let _ = sender.output(ControlsOut::DiscardChanges);

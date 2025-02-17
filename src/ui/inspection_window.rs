@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_std::path::Path;
 use gtk::glib::markup_escape_text;
 use itertools::Itertools;
-use relm4::prelude::*;
+use relm4::{prelude::*, RelmContainerExt};
 use tf_demo_parser::demo::{message::usermessage::ChatMessageKind, parser::analyser::Team};
 
 use super::util;
@@ -17,6 +17,12 @@ pub struct InspectionModel {
 
     player_factories: HashMap<Team, FactoryVecDeque<PlayerRowModel>>,
     event_view: Controller<EventListModel>,
+}
+
+#[derive(Debug)]
+pub enum InspectionMsg {
+    Inspect(Demo),
+    SearchChanged(String),
 }
 
 #[derive(Debug)]
@@ -32,7 +38,7 @@ lazy_static::lazy_static! {
 #[relm4::component(pub)]
 impl Component for InspectionModel {
     type Init = ();
-    type Input = Demo;
+    type Input = InspectionMsg;
     type Output = InspectionOut;
     type CommandOutput = Result<Arc<MatchState>>;
 
@@ -84,6 +90,7 @@ impl Component for InspectionModel {
                                         #[watch]
                                         set_label: &model.demo.inspection.as_ref().map(|i|i.server_info.name.clone()).unwrap_or_default(),
                                         set_selectable: true,
+                                        set_focusable: false,
                                         set_margin_top: 20,
                                         set_margin_bottom: 2,
                                         add_css_class: "title-3",
@@ -93,6 +100,7 @@ impl Component for InspectionModel {
                                         set_label: &model.demo.header.as_ref().map(|h|h.server.clone()).unwrap_or_default(),
                                         set_margin_bottom: 2,
                                         set_selectable: true,
+                                        set_focusable: false,
                                         add_css_class: "dim-label",
                                     },
                                     gtk::Label{
@@ -103,6 +111,7 @@ impl Component for InspectionModel {
                                         }).unwrap_or_default(),
                                         set_margin_bottom: 10,
                                         set_selectable: true,
+                                        set_focusable: false,
                                         add_css_class: "dim-label",
                                     },
                                     gtk::Grid{
@@ -186,11 +195,19 @@ impl Component for InspectionModel {
                                         set_margin_bottom: 10,
                                         add_css_class: "title-3",
                                     },
+                                    adw::Clamp {
+                                        set_maximum_size: 300,
+                                        gtk::SearchEntry{
+                                            connect_search_changed[sender] => move |entry|{
+                                                sender.input(InspectionMsg::SearchChanged(entry.text().to_string()));
+                                            }
+                                        }
+                                    },
                                     gtk::Grid {
                                         set_hexpand: true,
                                         set_column_homogeneous: true,
                                         set_column_spacing: 10,
-                                        set_margin_end: 50,
+                                        set_margin_bottom: 50,
                                         attach[0,0,1,1] = &gtk::Box{
                                             set_orientation: gtk::Orientation::Vertical,
                                             gtk::Label {
@@ -409,17 +426,28 @@ impl Component for InspectionModel {
         sender: ComponentSender<Self>,
         root: &Self::Root,
     ) -> () {
-        self.demo = message;
-        for (_, fac) in &mut self.player_factories {
-            fac.guard().clear();
+        match message {
+            InspectionMsg::Inspect(demo) => {
+                self.demo = demo;
+                for (_, fac) in &mut self.player_factories {
+                    fac.guard().clear();
+                }
+                if self.demo.inspection.is_none() {
+                    let mut dem = self.demo.clone();
+                    sender.oneshot_command(async move { dem.full_analysis().await });
+                } else {
+                    self.insert_players();
+                }
+                root.present();
+            }
+            InspectionMsg::SearchChanged(txt) => {
+                let txt = txt.to_lowercase();
+                for (_, fac) in &mut self.player_factories {
+                    let txt = txt.clone();
+                    fac.broadcast(PlayerRowMsg::SearchChanged(txt));
+                }
+            }
         }
-        if self.demo.inspection.is_none() {
-            let mut dem = self.demo.clone();
-            sender.oneshot_command(async move { dem.full_analysis().await });
-        } else {
-            self.insert_players();
-        }
-        root.present();
     }
 
     fn update_cmd(
@@ -460,12 +488,16 @@ impl InspectionModel {
 struct PlayerRowModel {
     player: crate::analyser::UserInfo,
     sid: Option<String>,
+
+    matches_search: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum PlayerRowMsg {
     OpenProfile,
     OpenSteamhistory,
+
+    SearchChanged(String),
 }
 
 #[derive(Debug)]
@@ -484,6 +516,8 @@ impl FactoryComponent for PlayerRowModel {
     view! {
         #[root]
         adw::ExpanderRow {
+            #[watch]
+            set_visible: self.matches_search,
             set_title_selectable: true,
             set_title: &self.player.name.clone().unwrap_or_default(),
             set_subtitle: &self.sid.clone().unwrap_or_default(),
@@ -509,7 +543,62 @@ impl FactoryComponent for PlayerRowModel {
                         set_has_frame: false,
                     },
                 }
-            }
+            },
+            add_row = &adw::ActionRow {
+                set_title: "SteamIDs",
+                add_suffix = &gtk::Label {
+                    set_selectable: true,
+                    set_focusable: false,
+                    set_justify: gtk::Justification::Right,
+                    #[watch]
+                    set_label: &format!("{}\n{}", self.sid.clone().unwrap_or_default(), self.player.steam_id.clone().unwrap_or_default()),
+                }
+            },
+            add_row = &adw::ActionRow {
+                set_title: "Classes",
+                #[watch]
+                set_subtitle: &format!("{} switches", self.player.class_switches.len()),
+                add_suffix = &gtk::Label{
+                    set_margin_top: 10,
+                    set_margin_bottom: 10,
+                    set_selectable: true,
+                    set_focusable: false,
+                    set_wrap: true,
+                    set_justify: gtk::Justification::Right,
+                    set_use_markup: true,
+                    #[watch]
+                    set_label: &self.player.class_switches.iter()
+                        .map(|c|format!("<a href=\"{0}\">{0}</a>: {1}", c.0, c.1.to_string()))
+                        .join("\n"),
+                    connect_activate_link[sender] => move |_, tick|{
+                        let _ = sender.output(PlayerRowOut::GotoTick(tick.parse().unwrap()));
+                        gtk::glib::Propagation::Stop
+                    },
+                }
+            },
+            add_row = &adw::ActionRow{
+                set_title: "Connection Events",
+                add_suffix = &gtk::Label {
+                    set_margin_top: 10,
+                    set_margin_bottom: 10,
+                    set_selectable: true,
+                    set_focusable: false,
+                    set_wrap: true,
+                    set_justify: gtk::Justification::Right,
+                    set_use_markup: true,
+                    #[watch]
+                    set_label: &self.player.connection_events.iter()
+                        .map(|c|format!("<a href=\"{0}\">{0}</a>: {1}", c.0, match &c.1 {
+                            crate::analyser::ConnectionEventType::Join => "Connected".to_string(),
+                            crate::analyser::ConnectionEventType::Leave(reason) => format!("Disconnected\n<small>({reason})</small>"),
+                        }))
+                        .join("\n"),
+                    connect_activate_link[sender] => move |_, tick|{
+                        let _ = sender.output(PlayerRowOut::GotoTick(tick.parse().unwrap()));
+                        gtk::glib::Propagation::Stop
+                    },
+                },
+            },
         }
     }
 
@@ -518,7 +607,11 @@ impl FactoryComponent for PlayerRowModel {
             .steam_id
             .clone()
             .map(|s| crate::util::steamid_32_to_64(&s).unwrap_or(s));
-        Self { player: init, sid }
+        Self {
+            player: init,
+            sid,
+            matches_search: true,
+        }
     }
 
     fn update(&mut self, message: Self::Input, _sender: FactorySender<Self>) {
@@ -538,6 +631,15 @@ impl FactoryComponent for PlayerRowModel {
                 )) {
                     log::warn!("Failed to open browser, {e}");
                 }
+            }
+            PlayerRowMsg::SearchChanged(search) => {
+                let search = search.to_lowercase();
+                self.matches_search = self
+                    .player
+                    .name
+                    .as_ref()
+                    .map_or(false, |n| n.to_lowercase().contains(&search))
+                    || self.sid.as_ref().map_or(false, |s| s.contains(&search));
             }
         }
     }

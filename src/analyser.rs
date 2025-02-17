@@ -34,6 +34,9 @@ pub struct UserInfo {
     pub steam_id: Option<String>,
     pub entity_id: Option<EntityId>,
     pub last_team: Option<Team>,
+
+    pub connection_events: Vec<(DemoTick, ConnectionEventType)>,
+    pub class_switches: Vec<(DemoTick, Class)>,
 }
 
 impl From<&tf_demo_parser::demo::data::UserInfo> for UserInfo {
@@ -485,12 +488,13 @@ impl Analyser {
                     },
                 );
                 let player = self.state.users.get_mut(suid.0).unwrap();
-                if player.last_class.is_none() || player.last_class.unwrap() != spawn.class {
+                if player.last_class.is_none() {
                     player.last_class = Some(spawn.class);
                     self.state.events.push(MatchEvent {
                         tick,
                         value: MatchEventType::ClassSwitch(suid, spawn.class),
                     });
+                    player.class_switches.push((tick, spawn.class));
                 }
                 if player.last_team.is_none() || player.last_team.unwrap() != spawn.team {
                     player.last_team = Some(spawn.team);
@@ -569,9 +573,13 @@ impl Analyser {
                         ..Default::default()
                     },
                 );
+                let c = ConnectionEvent::from_conn(conn, suid);
+                self.state.users[suid.0]
+                    .connection_events
+                    .push((tick, c.value.clone()));
                 self.state.events.push(MatchEvent {
                     tick,
-                    value: MatchEventType::Connection(ConnectionEvent::from_conn(conn, suid)),
+                    value: MatchEventType::Connection(c),
                 });
             }
             GameEvent::PlayerDisconnect(discon) => {
@@ -588,10 +596,27 @@ impl Analyser {
                         ..Default::default()
                     },
                 );
+                let c = ConnectionEvent::from_dc(discon, suid);
+                self.state.users[suid.0]
+                    .connection_events
+                    .push((tick, c.value.clone()));
                 self.state.events.push(MatchEvent {
                     tick,
-                    value: MatchEventType::Connection(ConnectionEvent::from_dc(discon, suid)),
+                    value: MatchEventType::Connection(c),
                 });
+            }
+            GameEvent::PlayerChangeClass(c) => {
+                let class = Class::new(c.class);
+                let suid = self.stable_user(
+                    |u| u.user_id == c.user_id,
+                    || UserInfo {
+                        user_id: c.user_id.into(),
+                        ..Default::default()
+                    },
+                );
+                let user = self.state.users.get_mut(suid.0).unwrap();
+                user.last_class = Some(class);
+                user.class_switches.push((tick, class));
             }
             _ => {}
         }
