@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_std::path::Path;
 use gtk::glib::markup_escape_text;
 use itertools::Itertools;
-use relm4::{prelude::*, RelmContainerExt};
+use relm4::prelude::*;
 use tf_demo_parser::demo::{message::usermessage::ChatMessageKind, parser::analyser::Team};
 
 use super::util;
@@ -273,53 +273,7 @@ impl Component for InspectionModel {
                         set_name: Some("info"),
                         set_icon_name: Some(relm4_icons::icon_names::INFO_OUTLINE),
                     },
-                    add_titled_with_icon: (model.event_view.widget(), None, "Events", relm4_icons::icon_names::LIST_LARGE),
-                    add = &gtk::ScrolledWindow{
-                        #[watch]
-                        set_child: Some(&{
-                            let g_box = gtk::FlowBox::builder()
-                                .orientation(gtk::Orientation::Horizontal)
-                                .homogeneous(true)
-                                .build();
-
-                            model.demo.inspection.as_ref().inspect(|ms|{
-                                for user in ms.users.iter().sorted_by(|a,b|TEAM_ORDERING[&a.last_team.unwrap_or_default()].cmp(&TEAM_ORDERING[&b.last_team.unwrap_or_default()])){
-                                    let row = adw::ActionRow::new();
-
-                                    let sid64 = user.steam_id.as_ref().map(|sid|crate::util::steamid_32_to_64(&sid).unwrap_or_else(||{sid.clone()})).unwrap_or_default();
-                                    let color = match &user.last_team.unwrap_or_default() {
-                                        Team::Spectator | Team::Other => "848484",
-                                        Team::Red => "e04a4a",
-                                        Team::Blue => "3449d1",
-                                    };
-                                    row.set_title(&format!("<span foreground=\"#{color}\">{}</span>", markup_escape_text(user.name.as_ref().unwrap_or(&"".to_owned()))));
-                                    row.set_subtitle(&format!("{}, {}", user.last_team.unwrap_or_default(), sid64));
-                                    row.set_subtitle_selectable(true);
-
-                                    let open_btn = gtk::Button::builder()
-                                        .has_frame(false)
-                                        .tooltip_text("Open steam profile")
-                                        .icon_name(relm4_icons::icon_names::SYMBOLIC_LINK)
-                                        .build();
-                                    open_btn.connect_clicked(move |_|{
-                                        if let Err(e) = opener::open_browser(format!("https://steamcommunity.com/profiles/{}", sid64)){
-                                            log::warn!("Failed to open browser, {e}");
-                                        }
-                                    });
-                                    row.add_suffix(&open_btn);
-                                    row.set_activatable_widget(Some(&open_btn));
-                                    g_box.append(&gtk::Frame::builder().child(&row).build());
-                                }
-                            });
-
-                            g_box
-                        })
-                    } -> {
-                        set_title: Some("Players"),
-                        set_name: Some("players"),
-                        set_icon_name: Some(relm4_icons::icon_names::PEOPLE),
-                    },
-
+                    //add_titled_with_icon: (model.event_view.widget(), None, "Events", relm4_icons::icon_names::LIST_LARGE),
                     add = &gtk::ScrolledWindow{
                         #[watch]
                         set_child: Some(&{
@@ -406,7 +360,12 @@ impl Component for InspectionModel {
                     .map(|t| {
                         (
                             t.clone(),
-                            FactoryVecDeque::builder().launch_default().detach(),
+                            FactoryVecDeque::builder().launch_default().forward(
+                                sender.output_sender(),
+                                |m| match m {
+                                    PlayerRowOut::GotoTick(t) => InspectionOut::GotoTick(t),
+                                },
+                            ),
                         )
                     }),
             ),
