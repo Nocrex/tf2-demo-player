@@ -497,10 +497,10 @@ impl FactoryComponent for PlayerRowModel {
                             connect_clicked => PlayerRowMsg::OpenSteamhistory,
                         },
                     },
-                    gtk::Button {
-                        set_label: "Show events",
-                        set_has_frame: false,
-                    },
+                    //gtk::Button {
+                    //    set_label: "Show events",
+                    //    set_has_frame: false,
+                    //},
                 }
             },
             add_row = &adw::ActionRow {
