@@ -390,7 +390,7 @@ impl AsyncComponent for DemoPlayerModel {
                         let _ = self.rcon_manager.play_demo(demo).await;
                     }
                     RconAction::GotoTick(tick) => {
-                        let _ = self.rcon_manager.skip_to_tick(tick, true).await;
+                        let _ = self.rcon_manager.skip_to_tick(tick, self.settings.borrow().pause_after_seek).await;
                     }
                     RconAction::GotoEvent(ev) => {
                         let _ = self

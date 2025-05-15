@@ -10,6 +10,7 @@ pub enum PreferencesMsg {
     Close,
 
     DoubleclickPlay(bool),
+    PauseAfterSeek(bool),
     EventSkipOffset(f64),
     TF2FolderPath,
     RConPassword(String),
@@ -60,6 +61,14 @@ impl Component for PreferencesModel {
                         set_active: model.settings.doubleclick_play,
                         connect_active_notify[sender] => move |sr| {
                             sender.input(PreferencesMsg::DoubleclickPlay(sr.is_active()));
+                        }
+                    },
+
+                    adw::SwitchRow {
+                        set_title: "Pause demo playback after skipping",
+                        set_active: model.settings.pause_after_seek,
+                        connect_active_notify[sender] => move |sr| {
+                            sender.input(PreferencesMsg::PauseAfterSeek(sr.is_active()));
                         }
                     },
 
@@ -170,6 +179,7 @@ impl Component for PreferencesModel {
                 let _ = sender.output(PreferencesOut::Save(self.settings.clone()));
             }
             PreferencesMsg::DoubleclickPlay(p) => self.settings.doubleclick_play = p,
+            PreferencesMsg::PauseAfterSeek(p) => self.settings.pause_after_seek = p,
             PreferencesMsg::EventSkipOffset(off) => self.settings.event_skip_predelay = off as f32,
             PreferencesMsg::RConPassword(pass) => self.settings.rcon_pw = pass,
             PreferencesMsg::TF2FolderPath => {
