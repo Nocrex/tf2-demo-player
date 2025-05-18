@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::analyser::{MatchEventType, MatchState, StableUserId};
+use crate::analyser::{MatchEvent, MatchEventType, MatchState, StableUserId};
 use crate::demo_manager::Demo;
 use adw::prelude::*;
 use anyhow::Result;
@@ -91,6 +91,7 @@ impl Component for InspectionModel {
                                         set_label: &model.demo.inspection.as_ref().map(|i|i.server_info.name.clone()).unwrap_or_default(),
                                         set_selectable: true,
                                         set_focusable: false,
+                                        set_wrap: true,
                                         set_margin_top: 20,
                                         set_margin_bottom: 2,
                                         add_css_class: "title-3",
@@ -273,7 +274,7 @@ impl Component for InspectionModel {
                         set_name: Some("info"),
                         set_icon_name: Some(relm4_icons::icon_names::INFO_OUTLINE),
                     },
-                    //add_titled_with_icon: (model.event_view.widget(), None, "Events", relm4_icons::icon_names::LIST_LARGE),
+                    add_titled_with_icon: (model.event_view.widget(), None, "Events", relm4_icons::icon_names::LIST_LARGE),
                     add = &gtk::ScrolledWindow{
                         #[watch]
                         set_child: Some(&{
@@ -301,11 +302,13 @@ impl Component for InspectionModel {
                                         ChatMessageKind::Empty => "",
                                     }.to_string();
 
+                                    let dark = adw::StyleManager::default().is_dark();
+
                                     let color = match &chat.team {
                                         Some(t) => match t{
                                         Team::Spectator | Team::Other => "848484",
                                         Team::Red => "e04a4a",
-                                        Team::Blue => "3449d1",
+                                        Team::Blue => if dark {"6aaef7"} else {"3449d1"},
                                         }
                                         None => "848484",
                                     };
@@ -395,7 +398,7 @@ impl Component for InspectionModel {
                     let mut dem = self.demo.clone();
                     sender.oneshot_command(async move { dem.full_analysis().await });
                 } else {
-                    self.insert_players();
+                    self.update_display();
                 }
                 root.present();
             }
@@ -425,13 +428,13 @@ impl Component for InspectionModel {
         self.demo.inspection = message.ok();
         if self.demo.inspection.is_some() {
             let _ = sender.output(InspectionOut::DemoProcessed(self.demo.clone()));
-            self.insert_players();
+            self.update_display();
         }
     }
 }
 
 impl InspectionModel {
-    fn insert_players(&mut self) {
+    fn update_display(&mut self) {
         if let Some(insp) = &self.demo.inspection {
             for user in &insp.users {
                 self.player_factories
@@ -441,6 +444,8 @@ impl InspectionModel {
                     .push_back(user.clone());
             }
         }
+        self.event_view
+            .emit(EventListMsg::Show(self.demo.inspection.clone()));
     }
 }
 
@@ -497,7 +502,7 @@ impl FactoryComponent for PlayerRowModel {
                             connect_clicked => PlayerRowMsg::OpenSteamhistory,
                         },
                     },
-                    //gtk::Button {
+                    //gtk::Button { // TODO
                     //    set_label: "Show events",
                     //    set_has_frame: false,
                     //},
@@ -507,7 +512,6 @@ impl FactoryComponent for PlayerRowModel {
                 set_title: "SteamIDs",
                 add_suffix = &gtk::Label {
                     set_selectable: true,
-                    set_focusable: false,
                     set_justify: gtk::Justification::Right,
                     #[watch]
                     set_label: &format!("{}\n{}", self.sid.clone().unwrap_or_default(), self.player.steam_id.clone().unwrap_or_default()),
@@ -622,6 +626,7 @@ enum EventListMsg {
 }
 struct EventListModel {
     inspection: Option<Arc<MatchState>>,
+    list: FactoryVecDeque<EventListFactory>,
 
     show_chat: bool,
     show_deaths: bool,
@@ -688,6 +693,12 @@ impl SimpleComponent for EventListModel {
                         connect_clicked => EventListMsg::Filter(EventListFilter::Class),
                     },
                 }
+            },
+            gtk::ScrolledWindow{
+                #[wrap(Some)]
+                set_child = model.list.widget() {
+                    set_vexpand: true,
+                },
             }
         }
     }
@@ -699,6 +710,7 @@ impl SimpleComponent for EventListModel {
     ) -> ComponentParts<Self> {
         let model = Self {
             inspection: None,
+            list: FactoryVecDeque::builder().launch_default().detach(),
             show_chat: true,
             show_deaths: true,
             show_rounds: true,
@@ -724,7 +736,47 @@ impl SimpleComponent for EventListModel {
                 EventListFilter::Team => self.show_team = !self.show_team,
                 EventListFilter::Class => self.show_class = !self.show_class,
             },
-            EventListMsg::Show(match_state) => todo!(),
+            EventListMsg::Show(match_state) => {
+                self.inspection = match_state;
+                let mut g = self.list.guard();
+                g.clear();
+                if let Some(state) = &self.inspection {
+                    for ev in &state.events {
+                        g.push_back((ev.clone(), 1.0 / state.server_info.interval_per_tick));
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct EventListFactory {
+    event: MatchEvent,
+    tps: f32,
+}
+
+#[relm4::factory]
+impl FactoryComponent for EventListFactory {
+    type Init = (MatchEvent, f32);
+    type Input = ();
+    type Output = ();
+    type CommandOutput = ();
+    type ParentWidget = gtk::ListBox;
+
+    view! {
+        #[root]
+        adw::ActionRow {
+            set_title: &format!("{:?}", self.event.value),
+            add_suffix = &gtk::Label{
+                set_label: &format!("{} ({})", crate::util::ticks_to_timestamp(self.event.tick.into(), self.tps), self.event.tick)
+            }
+        }
+    }
+
+    fn init_model(init: Self::Init, index: &Self::Index, sender: FactorySender<Self>) -> Self {
+        Self {
+            event: init.0,
+            tps: init.1,
         }
     }
 }
