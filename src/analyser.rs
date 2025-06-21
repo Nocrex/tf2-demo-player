@@ -386,7 +386,7 @@ impl MessageHandler for Analyser {
     fn into_output(self, _state: &ParserState) -> Self::Output {
         let mut state = self.state;
         for (_, vote) in self.votes {
-            let ind_start = state.events.partition_point(|e| e.tick >= vote.start_tick);
+            let ind_start = state.events.partition_point(|e| e.tick < vote.start_tick);
             state.events.insert(
                 ind_start,
                 MatchEvent {
