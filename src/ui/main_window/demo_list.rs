@@ -7,8 +7,8 @@ use chrono::TimeZone;
 use gtk::gio;
 use relm4::prelude::*;
 
-use crate::demo_manager::Demo;
 use super::demo_object::DemoObject;
+use crate::demo_manager::Demo;
 
 pub struct DemoListModel {
     list_model: gio::ListStore,
@@ -81,10 +81,8 @@ impl Component for DemoListModel {
 
         let model = DemoListModel {
             list_model: liststore.clone(),
-            list_selection: gtk::MultiSelection::new(None::<gio::ListStore>),
+            list_selection: gtk::MultiSelection::new(Some(sorted_model.clone())),
         };
-
-        model.list_selection.set_model(Some(&sorted_model));
 
         {
             let sender = sender.clone();

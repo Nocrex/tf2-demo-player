@@ -1,10 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::analyser::{MatchEvent, MatchEventType, MatchState, StableUserId};
+use crate::analyser::{MatchEventType, MatchState};
 use crate::demo_manager::Demo;
 use adw::prelude::*;
 use anyhow::Result;
 use async_std::path::Path;
+use event_list::{EventViewModel, EventViewMsg};
 use gtk::glib::markup_escape_text;
 use itertools::Itertools;
 use relm4::prelude::*;
@@ -12,11 +13,13 @@ use tf_demo_parser::demo::{message::usermessage::ChatMessageKind, parser::analys
 
 use super::util;
 
+mod event_list;
+
 pub struct InspectionModel {
     demo: Demo,
 
     player_factories: HashMap<Team, FactoryVecDeque<PlayerRowModel>>,
-    event_view: Controller<EventListModel>,
+    event_view: Controller<EventViewModel>,
 }
 
 #[derive(Debug)]
@@ -372,7 +375,7 @@ impl Component for InspectionModel {
                         )
                     }),
             ),
-            event_view: EventListModel::builder()
+            event_view: EventViewModel::builder()
                 .launch(None)
                 .forward(sender.output_sender(), |t| InspectionOut::GotoTick(t)),
         };
@@ -444,8 +447,10 @@ impl InspectionModel {
                     .push_back(user.clone());
             }
         }
-        self.event_view
-            .emit(EventListMsg::Show(self.demo.inspection.clone()));
+        self.event_view.emit(EventViewMsg::Show(
+            self.demo.inspection.clone(),
+            self.demo.tps(),
+        ));
     }
 }
 
@@ -604,179 +609,6 @@ impl FactoryComponent for PlayerRowModel {
                     .map_or(false, |n| n.to_lowercase().contains(&search))
                     || self.sid.as_ref().map_or(false, |s| s.contains(&search));
             }
-        }
-    }
-}
-
-#[derive(Debug)]
-enum EventListFilter {
-    Chat,
-    Deaths,
-    Rounds,
-    Connections,
-    Votes,
-    Team,
-    Class,
-}
-
-#[derive(Debug)]
-enum EventListMsg {
-    Filter(EventListFilter),
-    Show(Option<Arc<MatchState>>),
-}
-struct EventListModel {
-    inspection: Option<Arc<MatchState>>,
-    list: FactoryVecDeque<EventListFactory>,
-
-    show_chat: bool,
-    show_deaths: bool,
-    show_rounds: bool,
-    show_connections: bool,
-    show_votes: bool,
-    show_team: bool,
-    show_class: bool,
-}
-
-#[relm4::component]
-impl SimpleComponent for EventListModel {
-    type Init = Option<(Arc<MatchState>, StableUserId)>;
-    type Input = EventListMsg;
-    type Output = u32;
-
-    view! {
-        gtk::Box{
-            set_orientation: gtk::Orientation::Vertical,
-            gtk::CenterBox{
-                #[wrap(Some)]
-                set_end_widget = &gtk::Box{
-                    add_css_class: "linked",
-                    gtk::ToggleButton {
-                        #[watch]
-                        set_active: model.show_chat,
-                        set_tooltip_text: Some("Chat"),
-                        connect_clicked => EventListMsg::Filter(EventListFilter::Chat),
-                    },
-                    gtk::ToggleButton {
-                        #[watch]
-                        set_active: model.show_deaths,
-                        set_tooltip_text: Some("Deaths"),
-                        connect_clicked => EventListMsg::Filter(EventListFilter::Deaths),
-                    },
-                    gtk::ToggleButton {
-                        #[watch]
-                        set_active: model.show_rounds,
-                        set_tooltip_text: Some("Rounds"),
-                        connect_clicked => EventListMsg::Filter(EventListFilter::Rounds),
-                    },
-                    gtk::ToggleButton {
-                        #[watch]
-                        set_active: model.show_connections,
-                        set_tooltip_text: Some("Connections"),
-                        connect_clicked => EventListMsg::Filter(EventListFilter::Connections),
-                    },
-                    gtk::ToggleButton {
-                        #[watch]
-                        set_active: model.show_votes,
-                        set_tooltip_text: Some("Votes"),
-                        connect_clicked => EventListMsg::Filter(EventListFilter::Votes),
-                    },
-                    gtk::ToggleButton {
-                        #[watch]
-                        set_active: model.show_team,
-                        set_tooltip_text: Some("Team Switches"),
-                        connect_clicked => EventListMsg::Filter(EventListFilter::Team),
-                    },
-                    gtk::ToggleButton {
-                        #[watch]
-                        set_active: model.show_class,
-                        set_tooltip_text: Some("Class switches"),
-                        connect_clicked => EventListMsg::Filter(EventListFilter::Class),
-                    },
-                }
-            },
-            gtk::ScrolledWindow{
-                #[wrap(Some)]
-                set_child = model.list.widget() {
-                    set_vexpand: true,
-                },
-            }
-        }
-    }
-
-    fn init(
-        init: Self::Init,
-        root: Self::Root,
-        sender: ComponentSender<Self>,
-    ) -> ComponentParts<Self> {
-        let model = Self {
-            inspection: None,
-            list: FactoryVecDeque::builder().launch_default().detach(),
-            show_chat: true,
-            show_deaths: true,
-            show_rounds: true,
-            show_connections: true,
-            show_votes: true,
-            show_team: true,
-            show_class: true,
-        };
-
-        let widgets = view_output!();
-
-        ComponentParts { model, widgets }
-    }
-
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
-        match message {
-            EventListMsg::Filter(event_list_filter) => match event_list_filter {
-                EventListFilter::Chat => self.show_chat = !self.show_chat,
-                EventListFilter::Deaths => self.show_deaths = !self.show_deaths,
-                EventListFilter::Rounds => self.show_rounds = !self.show_rounds,
-                EventListFilter::Connections => self.show_connections = !self.show_connections,
-                EventListFilter::Votes => self.show_votes = !self.show_votes,
-                EventListFilter::Team => self.show_team = !self.show_team,
-                EventListFilter::Class => self.show_class = !self.show_class,
-            },
-            EventListMsg::Show(match_state) => {
-                self.inspection = match_state;
-                let mut g = self.list.guard();
-                g.clear();
-                if let Some(state) = &self.inspection {
-                    for ev in &state.events {
-                        g.push_back((ev.clone(), 1.0 / state.server_info.interval_per_tick));
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct EventListFactory {
-    event: MatchEvent,
-    tps: f32,
-}
-
-#[relm4::factory]
-impl FactoryComponent for EventListFactory {
-    type Init = (MatchEvent, f32);
-    type Input = ();
-    type Output = ();
-    type CommandOutput = ();
-    type ParentWidget = gtk::ListBox;
-
-    view! {
-        #[root]
-        adw::ActionRow {
-            set_title: &format!("{:?}", self.event.value),
-            add_suffix = &gtk::Label{
-                set_label: &format!("{} ({})", crate::util::ticks_to_timestamp(self.event.tick.into(), self.tps), self.event.tick)
-            }
-        }
-    }
-
-    fn init_model(init: Self::Init, index: &Self::Index, sender: FactorySender<Self>) -> Self {
-        Self {
-            event: init.0,
-            tps: init.1,
         }
     }
 }

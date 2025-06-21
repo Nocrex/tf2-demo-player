@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::ops::Index;
 
 use itertools::Itertools;
 use tf_demo_parser::demo::gameevent_gen::{PlayerConnectClientEvent, PlayerDisconnectEvent};
@@ -310,6 +311,13 @@ pub struct StableUserId(usize);
 impl From<usize> for StableUserId {
     fn from(value: usize) -> Self {
         Self(value)
+    }
+}
+
+impl<T> Index<&StableUserId> for Vec<T> {
+    type Output = T;
+    fn index(&self, index: &StableUserId) -> &Self::Output {
+        &self[index.0]
     }
 }
 
