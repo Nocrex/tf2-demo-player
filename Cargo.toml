@@ -39,3 +39,7 @@ winresource = "0.1.19"
 
 [build-dependencies]
 gvdb = { version = "0.8.0", features = ["gresource"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
