@@ -57,7 +57,7 @@ pub struct Vote {
     pub start_tick: DemoTick,
     pub end_tick: DemoTick,
     pub team: VoteTeam,
-    pub initator: Option<String>,
+    pub initiator: Option<String>,
     pub issue: Option<String>,
     pub options: Vec<String>,
     pub votes: Vec<(DemoTick, String, usize)>,
@@ -299,6 +299,20 @@ pub enum MatchEventType {
     ClassSwitch(StableUserId, Class),
 }
 
+impl MatchEventType {
+    pub fn get_type_string(&self) -> &str {
+        match self {
+            MatchEventType::Kill(_) => "Kill",
+            MatchEventType::RoundEnd(_) => "Round End",
+            MatchEventType::Chat(_) => "Chat",
+            MatchEventType::Connection(_) => "Connection",
+            MatchEventType::VoteStarted(_) => "Vote",
+            MatchEventType::TeamSwitch(_, _) => "Team Switch",
+            MatchEventType::ClassSwitch(_, _) => "Class Switch",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct MatchEvent {
     pub tick: DemoTick,
@@ -537,7 +551,7 @@ impl Analyser {
                             .push((tick, player.clone(), cast.vote_option.into()));
                         if tick == v.start_tick {
                             match v.options[cast.vote_option as usize].as_str() {
-                                "Yes" => v.initator = Some(player.clone()),
+                                "Yes" => v.initiator = Some(player.clone()),
                                 "No" => v.issue = Some(format!("Kick player \"{player}\"?")),
                                 _ => (),
                             }

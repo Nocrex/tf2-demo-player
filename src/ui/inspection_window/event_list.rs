@@ -1,12 +1,46 @@
 use std::sync::Arc;
 
-use crate::analyser::{
-    ConnectionEventType, MatchEvent, MatchEventType, MatchState, StableUserId, VoteTeam,
+use crate::{
+    analyser::{
+        ConnectionEventType, CritType, MatchEvent, MatchEventType, MatchState, StableUserId,
+        VoteTeam,
+    },
+    util,
 };
 use adw::prelude::*;
 use itertools::Itertools;
 use relm4::{gtk::glib::markup_escape_text, prelude::*};
 use tf_demo_parser::demo::{message::usermessage::ChatMessageKind, parser::analyser::Team};
+
+fn get_team_color_string(team: Option<&Team>) -> &str {
+    let dark = adw::StyleManager::default().is_dark();
+    match team {
+        Some(t) => match t {
+            Team::Spectator | Team::Other => "848484",
+            Team::Red => "e04a4a",
+            Team::Blue => {
+                if dark {
+                    "6aaef7"
+                } else {
+                    "3449d1"
+                }
+            }
+        },
+        None => "848484",
+    }
+}
+
+fn get_message_kind_prefix(kind: &ChatMessageKind) -> &str {
+    match kind {
+        ChatMessageKind::ChatAll => "",
+        ChatMessageKind::ChatTeam => "(Team) ",
+        ChatMessageKind::ChatAllDead => "*DEAD* ",
+        ChatMessageKind::ChatTeamDead => "(Team) *DEAD* ",
+        ChatMessageKind::ChatAllSpec => "*SPEC* ",
+        ChatMessageKind::NameChange => "[Name Change] ",
+        ChatMessageKind::Empty => "",
+    }
+}
 
 #[derive(Debug)]
 pub enum EventListFilterChange {
@@ -33,12 +67,12 @@ pub struct EventListFilter {
 impl EventListFilter {
     fn reset(&mut self) {
         self.show_chat = true;
-        self.show_deaths = true;
-        self.show_rounds = true;
-        self.show_connections = true;
-        self.show_votes = true;
-        self.show_team = true;
-        self.show_class = true;
+        self.show_deaths = false;
+        self.show_rounds = false;
+        self.show_connections = false;
+        self.show_votes = false;
+        self.show_team = false;
+        self.show_class = false;
     }
 }
 
@@ -46,12 +80,14 @@ impl EventListFilter {
 pub enum EventViewMsg {
     Filter(EventListFilterChange),
     Show(Option<Arc<MatchState>>, f32),
+    Selected(DynamicIndex),
 }
 pub struct EventViewModel {
     inspection: Option<Arc<MatchState>>,
     tps: f32,
 
     list_model: FactoryVecDeque<EventRowModel>,
+    event_dialog: Controller<EventDialogModel>,
 
     filter: EventListFilter,
 }
@@ -66,6 +102,10 @@ impl SimpleComponent for EventViewModel {
         gtk::Box{
             set_orientation: gtk::Orientation::Vertical,
             gtk::CenterBox{
+                set_margin_all: 10,
+                #[wrap(Some)]
+                set_start_widget = &gtk::SearchEntry{
+                },
                 #[wrap(Some)]
                 set_end_widget = &gtk::Box{
                     add_css_class: "linked",
@@ -124,8 +164,9 @@ impl SimpleComponent for EventViewModel {
                 #[wrap(Some)]
                 set_child = model.list_model.widget() {
                     set_vexpand: true,
+                    set_show_separators: true,
                 },
-            }
+            },
         }
     }
 
@@ -135,17 +176,20 @@ impl SimpleComponent for EventViewModel {
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         let model = Self {
-            list_model: FactoryVecDeque::builder().launch_default().detach(),
+            list_model: FactoryVecDeque::builder()
+                .launch_default()
+                .forward(sender.input_sender(), |ind| EventViewMsg::Selected(ind)),
+            event_dialog: EventDialogModel::builder().launch(root.clone()).detach(),
             inspection: None,
             tps: 0.0,
             filter: EventListFilter {
                 show_chat: true,
-                show_deaths: true,
-                show_rounds: true,
-                show_connections: true,
-                show_votes: true,
-                show_team: true,
-                show_class: true,
+                show_deaths: false,
+                show_rounds: false,
+                show_connections: false,
+                show_votes: false,
+                show_team: false,
+                show_class: false,
             },
         };
 
@@ -154,7 +198,7 @@ impl SimpleComponent for EventViewModel {
         ComponentParts { model, widgets }
     }
 
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+    fn update(&mut self, message: Self::Input, _sender: ComponentSender<Self>) {
         match message {
             EventViewMsg::Filter(event_list_filter) => {
                 match event_list_filter {
@@ -190,8 +234,336 @@ impl SimpleComponent for EventViewModel {
                         g.push_back((ev.clone(), self.tps, state.clone()));
                     }
                 }
+                g.broadcast(EventRowMsg::Filter(self.filter.clone()));
+            }
+            EventViewMsg::Selected(ind) => self.event_dialog.emit(EventDialogMsg::Update(Some((
+                self.inspection.clone().unwrap(),
+                ind.current_index(),
+                self.tps,
+            )))),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct EventDialogModel {
+    inspection: Option<Arc<MatchState>>,
+    tps: f32,
+
+    selected_event: Option<usize>,
+    parent: gtk::Box,
+}
+
+#[derive(Debug)]
+enum EventDialogMsg {
+    Update(Option<(Arc<MatchState>, usize, f32)>),
+    CopyMessage,
+}
+
+#[relm4::component]
+impl Component for EventDialogModel {
+    type Init = gtk::Box;
+    type Input = EventDialogMsg;
+    type Output = ();
+    type CommandOutput = ();
+
+    view! {
+        adw::Dialog{
+            set_can_close: false,
+            set_follows_content_size: true,
+            set_presentation_mode: adw::DialogPresentationMode::BottomSheet,
+            connect_close_attempt => EventDialogMsg::Update(None),
+            #[wrap(Some)]
+            set_child =
+                match model.inspection.as_ref()
+                    .and_then(|i|model.selected_event.as_ref().map(|e|(i,e)))
+                    .map(|(s,i)|&s.events[*i])
+                {
+                    Some(ev) => gtk::Box{
+                        set_orientation: gtk::Orientation::Vertical,
+                        set_margin_all: 10,
+                        gtk::CenterBox{
+                            #[wrap(Some)]
+                            set_start_widget = &gtk::Label{
+                                #[watch]
+                                set_label: ev.value.get_type_string(),
+                                add_css_class: "title-3",
+                                set_halign: gtk::Align::Start,
+                            },
+                            #[wrap(Some)]
+                            set_end_widget = &gtk::Button{
+                                set_icon_name: "find-location-symbolic",
+                                set_tooltip_text: Some("Set playbar to event"),
+                            }
+                        },
+                        gtk::Label{
+                            set_selectable: true,
+                            #[watch]
+                            set_label: &format!("Tick {}", ev.tick.to_string()),
+                            add_css_class: "dimmed",
+                            set_halign: gtk::Align::Start,
+                            set_margin_bottom: 10,
+                        },
+                        container_add = match &ev.value {
+                            MatchEventType::Kill(kill) => gtk::Grid{
+                                set_row_spacing: 10,
+                                set_column_spacing: 10,
+                                attach[0,0,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Killer:",
+                                    #[watch]
+                                    set_visible: kill.killer.is_some(),
+                                },
+                                attach[1,0,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: &format!("{}{}",
+                                        kill.killer.as_ref()
+                                            .and_then(|k|model.inspection.as_ref().unwrap().users[k].name.clone())
+                                            .map_or_else(||"unknown".to_string(), |n|n),
+                                        if kill.domination {" (domination)"} else if kill.revenge {" (revenge)"} else {""}
+                                    ),
+                                    #[watch]
+                                    set_visible: kill.killer.is_some(),
+                                },
+                                attach[0,1,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Assister:",
+                                    #[watch]
+                                    set_visible: kill.assister.is_some(),
+                                },
+                                attach[1,1,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: &format!("{}{}",
+                                        kill.assister.as_ref()
+                                            .and_then(|k|model.inspection.as_ref().unwrap().users[k].name.clone())
+                                            .map_or_else(||"unknown".to_string(), |n|n),
+                                        if kill.assist_dom {" (domination)"} else if kill.assist_revg {" (revenge)"} else {""}
+                                    ),
+                                    #[watch]
+                                    set_visible: kill.assister.is_some(),
+                                },
+                                attach[0,2,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Victim:",
+                                },
+                                attach[1,2,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: &format!("{}{}",
+                                        model.inspection.as_ref().unwrap()
+                                        .users[&kill.victim].name.clone()
+                                        .map_or_else(||"unknown".to_string(), |n|n),
+                                        if kill.deadringer {" (death feigned)"} else {""}
+                                    ),
+                                },
+                                attach[0,3,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Weapon:",
+                                },
+                                attach[1,3,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: &format!("{}{}",
+                                        kill.weapon,
+                                        match kill.crit_type {
+                                            CritType::None => "",
+                                            CritType::Mini => " (mini-crit)",
+                                            CritType::Full => " (crit)",
+                                            CritType::Unknown(_) => " (unknown crit type)",
+                                        }
+                                    ),
+                                },
+                            }
+                            MatchEventType::RoundEnd(r) => gtk::Grid{
+                                set_row_spacing: 10,
+                                set_column_spacing: 10,
+                                attach[0,0,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Winner:",
+                                },
+                                attach[1,0,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: &r.winner.to_string(),
+                                },
+                                attach[0,1,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Round Length:",
+                                },
+                                attach[1,1,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: &util::sec_to_timestamp(r.length),
+                                },
+                            }
+                            MatchEventType::Chat(chat) => gtk::Box{
+                                set_orientation: gtk::Orientation::Vertical,
+                                set_spacing: 10,
+                                set_margin_top: 10,
+                                gtk::Label{
+                                    set_selectable: true,
+                                    set_use_markup: true,
+                                    #[watch]
+                                    set_label: &format!("{}<span foreground=\"#{}\">{}</span>{}{}",
+                                        get_message_kind_prefix(&chat.kind),
+                                        get_team_color_string(chat.team.as_ref()),
+                                        chat.from,
+                                        if chat.from.is_empty() {""} else {": "},
+                                        markup_escape_text(&chat.text),
+                                    ),
+                                },
+                                gtk::Button{
+                                    set_label: "Copy message",
+                                    set_halign: gtk::Align::Center,
+                                    connect_clicked => EventDialogMsg::CopyMessage,
+                                }
+                            }
+                            MatchEventType::Connection(conn) => gtk::Label{
+                                set_selectable: true,
+                                #[watch]
+                                set_label: &format!("{} ({}) {}", conn.name, conn.steamid, match &conn.value {
+                                    ConnectionEventType::Join => "joined the game".to_owned(),
+                                    ConnectionEventType::Leave(reason) => format!("left the game\nReason: {}", reason),
+                                })
+                            }
+                            MatchEventType::TeamSwitch(id, team) => gtk::Label{
+                                set_selectable: true,
+                                #[watch]
+                                set_label: &format!("{} switched to team {}",
+                                    model.inspection.as_ref()
+                                        .map(|i|&i.users[id])
+                                        .and_then(|u|u.name.as_ref())
+                                        .map_or("unknown", |n|n),
+                                    team
+                                )
+                            }
+                            MatchEventType::ClassSwitch(id, class) => gtk::Label{
+                                set_selectable: true,
+                                #[watch]
+                                set_label: &format!("{} switched to {}",
+                                    model.inspection.as_ref()
+                                        .map(|i|&i.users[id])
+                                        .and_then(|u|u.name.as_ref())
+                                        .map_or("unknown", |n|n),
+                                    class
+                                )
+                            }
+                            MatchEventType::VoteStarted(vote) => gtk::Grid{
+                                set_row_spacing: 10,
+                                set_column_spacing: 10,
+                                attach[0,0,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Team:",
+                                },
+                                attach[1,0,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: &vote.team.to_string(),
+                                },
+                                attach[0,1,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Time:",
+                                },
+                                attach[1,1,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: &util::ticks_to_timestamp((vote.end_tick - vote.start_tick).into(), model.tps),
+                                },
+                                attach[0,2,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Initiator:",
+                                },
+                                attach[1,2,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: vote.initiator.as_ref().map_or("unknown",|v|v),
+                                },
+                                attach[0,3,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Issue:",
+                                },
+                                attach[1,3,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: vote.issue.as_ref().map_or("unknown", |v|v),
+                                },
+                                attach[0,4,1,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    set_label: "Votes:",
+                                },
+                                attach[0,5,2,1] = &gtk::Label{
+                                    set_halign: gtk::Align::Start,
+                                    #[watch]
+                                    set_label: &vote.options.iter().enumerate().map(|(i,o)|format!("{o}: {}", vote.votes.iter().filter(|(_,_,o)|*o == i).map(|(_,n,_)|n.clone()).join(", "))).join("\n"),
+                                },
+                            }
+                        },
+                    },
+                    None => gtk::Label{
+                        set_label: "Nothing",
+                    }
+                }
+        }
+    }
+
+    fn init(
+        init: Self::Init,
+        root: Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
+        let model = Self {
+            inspection: None,
+            selected_event: None,
+            tps: 0.0,
+            parent: init,
+        };
+
+        let widgets = view_output!();
+
+        ComponentParts { model, widgets }
+    }
+
+    fn update_with_view(
+        &mut self,
+        widgets: &mut Self::Widgets,
+        message: Self::Input,
+        sender: ComponentSender<EventDialogModel>,
+        root: &Self::Root,
+    ) {
+        match message {
+            EventDialogMsg::Update(Some((state, ind, tps))) => {
+                self.inspection = Some(state);
+                self.selected_event = Some(ind);
+                self.tps = tps;
+                root.present(Some(&self.parent));
+            }
+            EventDialogMsg::Update(None) => {
+                root.force_close();
+            }
+            EventDialogMsg::CopyMessage => {
+                if let Some(MatchEventType::Chat(chat)) = self
+                    .inspection
+                    .as_ref()
+                    .zip(self.selected_event)
+                    .and_then(|(i, s)| i.events.get(s))
+                    .map(|ev| &ev.value)
+                {
+                    let msg = format!(
+                        "{}{}{}{}",
+                        get_message_kind_prefix(&chat.kind),
+                        chat.from,
+                        if chat.from.is_empty() { "" } else { ": " },
+                        markup_escape_text(&chat.text),
+                    );
+                    let disp = gtk::gdk::Display::default().unwrap();
+                    let clip = disp.clipboard();
+                    clip.set_text(&msg);
+                }
             }
         }
+        self.update_view(widgets, sender);
     }
 }
 
@@ -217,7 +589,7 @@ impl FactoryComponent for EventRowModel {
     type ParentWidget = gtk::ListBox;
     type CommandOutput = ();
     type Input = EventRowMsg;
-    type Output = ();
+    type Output = DynamicIndex;
     type Init = (MatchEvent, f32, Arc<MatchState>);
 
     view! {
@@ -236,6 +608,9 @@ impl FactoryComponent for EventRowModel {
             },
             set_title: &self.title,
             set_subtitle: &self.subtitle,
+            connect_activated[sender, index] => move |_|{
+                sender.output(index.clone()).unwrap();
+            }
         }
     }
 
@@ -291,33 +666,9 @@ impl FactoryComponent for EventRowModel {
                 subtitle = "".into();
             }
             MatchEventType::Chat(chat) => {
-                let kind = match chat.kind {
-                    ChatMessageKind::ChatAll => "",
-                    ChatMessageKind::ChatTeam => "(Team) ",
-                    ChatMessageKind::ChatAllDead => "*DEAD* ",
-                    ChatMessageKind::ChatTeamDead => "(Team) *DEAD* ",
-                    ChatMessageKind::ChatAllSpec => "*SPEC* ",
-                    ChatMessageKind::NameChange => "[Name Change] ",
-                    ChatMessageKind::Empty => "",
-                }
-                .to_string();
+                let kind = get_message_kind_prefix(&chat.kind);
 
-                let dark = adw::StyleManager::default().is_dark();
-
-                let color = match &chat.team {
-                    Some(t) => match t {
-                        Team::Spectator | Team::Other => "848484",
-                        Team::Red => "e04a4a",
-                        Team::Blue => {
-                            if dark {
-                                "6aaef7"
-                            } else {
-                                "3449d1"
-                            }
-                        }
-                    },
-                    None => "848484",
-                };
+                let color = get_team_color_string(chat.team.as_ref());
 
                 icon = relm4_icons::icon_names::CHAT_BUBBLES_TEXT;
                 title = markup_escape_text(&chat.text).into();
@@ -346,7 +697,7 @@ impl FactoryComponent for EventRowModel {
                 icon = relm4_icons::icon_names::CHECK_ROUND_OUTLINE;
                 title = format!(
                     "{} started a vote: {}",
-                    vote.initator
+                    vote.initiator
                         .clone()
                         .unwrap_or_else(|| "unknown".to_string()),
                     vote.issue
@@ -397,7 +748,7 @@ impl FactoryComponent for EventRowModel {
         }
     }
 
-    fn update(&mut self, message: Self::Input, sender: FactorySender<Self>) {
+    fn update(&mut self, message: Self::Input, _sender: FactorySender<Self>) {
         match message {
             EventRowMsg::Filter(filter) => {
                 self.matches_filter = (filter.show_chat
