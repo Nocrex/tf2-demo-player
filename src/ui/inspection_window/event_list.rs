@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     analyser::{
-        ConnectionEventType, CritType, MatchEvent, MatchEventType, MatchState, StableUserId,
+        ConnectionEventType, CritType, MatchEvent, MatchEventType, MatchState, StableUserId, Vote,
         VoteTeam,
     },
     util,
@@ -40,6 +40,33 @@ fn get_message_kind_prefix(kind: &ChatMessageKind) -> &str {
         ChatMessageKind::NameChange => "[Name Change] ",
         ChatMessageKind::Empty => "",
     }
+}
+
+fn vote_table(vote: &Vote) -> gtk::Grid {
+    let grid = gtk::Grid::new();
+    grid.set_row_spacing(10);
+    grid.set_column_spacing(30);
+
+    for (i, option)  in vote.options.iter().enumerate(){
+        let lab = gtk::Label::new(Some(&format!("<b>{option}</b>")));
+        lab.set_use_markup(true);
+
+        grid.attach(&lab, i as i32 * 2, 0, 2, 1);
+    }
+    
+    for (o, votes) in vote.votes.iter().into_group_map_by(|v|v.2){
+        for (i, vot) in votes.iter().enumerate() {
+            let name = gtk::Label::new(Some(&vot.1));
+            name.set_halign(gtk::Align::Start);
+            let tick = gtk::Label::new(Some(&vot.0.to_string()));
+            tick.set_halign(gtk::Align::End);
+            
+            grid.attach(&name, o as i32 *2, i as i32 + 1, 1, 1);
+            grid.attach(&tick, o as i32 *2 + 1, i as i32 + 1, 1, 1);
+        }
+    }
+    
+    grid
 }
 
 #[derive(Debug)]
@@ -103,9 +130,9 @@ impl SimpleComponent for EventViewModel {
             set_orientation: gtk::Orientation::Vertical,
             gtk::CenterBox{
                 set_margin_all: 10,
-                #[wrap(Some)]
-                set_start_widget = &gtk::SearchEntry{
-                },
+                //#[wrap(Some)]
+                //set_start_widget = &gtk::SearchEntry{
+                //},
                 #[wrap(Some)]
                 set_end_widget = &gtk::Box{
                     add_css_class: "linked",
@@ -493,11 +520,10 @@ impl Component for EventDialogModel {
                                     set_halign: gtk::Align::Start,
                                     set_label: "Votes:",
                                 },
-                                attach[0,5,2,1] = &gtk::Label{
-                                    set_halign: gtk::Align::Start,
-                                    #[watch]
-                                    set_label: &vote.options.iter().enumerate().map(|(i,o)|format!("{o}: {}", vote.votes.iter().filter(|(_,_,o)|*o == i).map(|(_,n,_)|n.clone()).join(", "))).join("\n"),
-                                },
+                                #[watch]
+                                remove_row: 5,
+                                #[watch]
+                                attach: (&vote_table(vote), 0, 5, 2, 1),
                             }
                         },
                     },
