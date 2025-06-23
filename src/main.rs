@@ -40,7 +40,7 @@ mod load_icons {
 async fn main() {
     simplelog::CombinedLogger::init(if cfg!(debug_assertions) {
         vec![simplelog::TermLogger::new(
-            log::LevelFilter::max(),
+            log::LevelFilter::Debug,
             Config::default(),
             simplelog::TerminalMode::Mixed,
             simplelog::ColorChoice::Auto,
