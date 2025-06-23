@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_std::path::Path;
 use event_list::{EventViewModel, EventViewMsg};
 use itertools::Itertools;
-use relm4::prelude::*;
+use relm4::{gtk::glib::markup_escape_text, prelude::*};
 use tf_demo_parser::demo::parser::analyser::Team;
 
 use super::util;
@@ -417,7 +417,7 @@ impl FactoryComponent for PlayerRowModel {
             #[watch]
             set_visible: self.matches_search,
             set_title_selectable: true,
-            set_title: &self.player.name.clone().unwrap_or_default(),
+            set_title: &markup_escape_text(&self.player.name.clone().unwrap_or_default()),
             set_subtitle: &self.sid.clone().unwrap_or_default(),
             add_row = &gtk::CenterBox {
                 #[wrap(Some)]

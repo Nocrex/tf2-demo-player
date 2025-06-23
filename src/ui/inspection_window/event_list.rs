@@ -16,17 +16,17 @@ fn get_team_color_string(team: Option<&Team>) -> &str {
     let dark = adw::StyleManager::default().is_dark();
     match team {
         Some(t) => match t {
-            Team::Spectator | Team::Other => "848484",
-            Team::Red => "e04a4a",
+            Team::Spectator | Team::Other => "#848484",
+            Team::Red => "#e04a4a",
             Team::Blue => {
                 if dark {
-                    "6aaef7"
+                    "#6aaef7"
                 } else {
-                    "3449d1"
+                    "#3449d1"
                 }
             }
         },
-        None => "848484",
+        None => "#848484",
     }
 }
 
@@ -47,25 +47,25 @@ fn vote_table(vote: &Vote) -> gtk::Grid {
     grid.set_row_spacing(10);
     grid.set_column_spacing(30);
 
-    for (i, option)  in vote.options.iter().enumerate(){
+    for (i, option) in vote.options.iter().enumerate() {
         let lab = gtk::Label::new(Some(&format!("<b>{option}</b>")));
         lab.set_use_markup(true);
 
         grid.attach(&lab, i as i32 * 2, 0, 2, 1);
     }
-    
-    for (o, votes) in vote.votes.iter().into_group_map_by(|v|v.2){
+
+    for (o, votes) in vote.votes.iter().into_group_map_by(|v| v.2) {
         for (i, vot) in votes.iter().enumerate() {
             let name = gtk::Label::new(Some(&vot.1));
             name.set_halign(gtk::Align::Start);
             let tick = gtk::Label::new(Some(&vot.0.to_string()));
             tick.set_halign(gtk::Align::End);
-            
-            grid.attach(&name, o as i32 *2, i as i32 + 1, 1, 1);
-            grid.attach(&tick, o as i32 *2 + 1, i as i32 + 1, 1, 1);
+
+            grid.attach(&name, o as i32 * 2, i as i32 + 1, 1, 1);
+            grid.attach(&tick, o as i32 * 2 + 1, i as i32 + 1, 1, 1);
         }
     }
-    
+
     grid
 }
 
@@ -433,7 +433,7 @@ impl Component for EventDialogModel {
                                     set_selectable: true,
                                     set_use_markup: true,
                                     #[watch]
-                                    set_label: &format!("{}<span foreground=\"#{}\">{}</span>{}{}",
+                                    set_label: &format!("{}<span foreground=\"{}\">{}</span>{}{}",
                                         get_message_kind_prefix(&chat.kind),
                                         get_team_color_string(chat.team.as_ref()),
                                         chat.from,
@@ -699,7 +699,7 @@ impl FactoryComponent for EventRowModel {
                 icon = relm4_icons::icon_names::CHAT_BUBBLES_TEXT;
                 title = markup_escape_text(&chat.text).into();
                 subtitle = format!(
-                    "{}<span foreground=\"#{color}\">{}</span>",
+                    "{}<span foreground=\"{color}\">{}</span>",
                     kind,
                     markup_escape_text(&chat.from).as_str()
                 )
@@ -723,12 +723,18 @@ impl FactoryComponent for EventRowModel {
                 icon = relm4_icons::icon_names::CHECK_ROUND_OUTLINE;
                 title = format!(
                     "{} started a vote: {}",
-                    vote.initiator
-                        .clone()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    vote.issue
-                        .clone()
-                        .unwrap_or_else(|| "Unknown vote issue".to_string())
+                    markup_escape_text(
+                        &vote
+                            .initiator
+                            .clone()
+                            .unwrap_or_else(|| "unknown".to_string())
+                    ),
+                    markup_escape_text(
+                        &vote
+                            .issue
+                            .clone()
+                            .unwrap_or_else(|| "Unknown vote issue".to_string())
+                    )
                 );
                 subtitle = format!(
                     "{} | {}",
@@ -752,15 +758,23 @@ impl FactoryComponent for EventRowModel {
                 let user = &state.users[uid];
 
                 icon = relm4_icons::icon_names::HORIZONTAL_ARROWS;
-                title = team.to_string();
-                subtitle = user.name.clone().unwrap_or_else(|| "unknown".to_string());
+                title =
+                    markup_escape_text(&user.name.clone().unwrap_or_else(|| "unknown".to_string()))
+                        .into();
+                subtitle = format!(
+                    "<span foreground=\"{}\">{}</span>",
+                    get_team_color_string(Some(&team)),
+                    team.to_string()
+                );
             }
             MatchEventType::ClassSwitch(uid, class) => {
                 let user = &state.users[uid];
 
                 icon = relm4_icons::icon_names::DISCOVER;
-                title = class.to_string();
-                subtitle = user.name.clone().unwrap_or_else(|| "unknown".to_string());
+                title =
+                    markup_escape_text(&user.name.clone().unwrap_or_else(|| "unknown".to_string()))
+                        .into();
+                subtitle = class.to_string();
             }
         }
         Self {
