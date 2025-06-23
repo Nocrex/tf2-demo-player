@@ -317,10 +317,7 @@ impl Component for DemoListModel {
                 let data_set: HashSet<(String, u64), RandomState> =
                     HashSet::from_iter(demos.iter().map(|t| {
                         let demo = t.1;
-                        (
-                            demo.filename.to_owned(),
-                            demo.metadata.as_ref().unwrap().len(),
-                        )
+                        (demo.filename.to_owned(), demo.size.unwrap_or(0))
                     }));
 
                 self.list_model.retain(|d| {

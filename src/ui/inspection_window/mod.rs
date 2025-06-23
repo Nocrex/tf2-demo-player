@@ -1,15 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::analyser::{MatchEventType, MatchState};
+use crate::analyser::MatchState;
 use crate::demo_manager::Demo;
 use adw::prelude::*;
 use anyhow::Result;
 use async_std::path::Path;
 use event_list::{EventViewModel, EventViewMsg};
-use gtk::glib::markup_escape_text;
 use itertools::Itertools;
 use relm4::prelude::*;
-use tf_demo_parser::demo::{message::usermessage::ChatMessageKind, parser::analyser::Team};
+use tf_demo_parser::demo::parser::analyser::Team;
 
 use super::util;
 

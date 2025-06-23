@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use adw::prelude::*;
 use gtk::gio;
@@ -73,11 +74,12 @@ relm4::new_stateful_action!(OpenFolderAction, AppMenu, "open-folder", String, ()
 relm4::new_stateless_action!(ShowAboutAction, AppMenu, "show-about");
 
 pub struct DemoPlayerModel {
-    demo_manager: DemoManager,
+    demo_manager: Arc<Mutex<DemoManager>>,
     rcon_manager: RconManager,
     settings: Rc<RefCell<Settings>>,
 
     selected_demo: Option<Demo>,
+    loading: bool,
 
     preferences_wnd: Option<Controller<PreferencesModel>>,
     about_wnd: Controller<AboutModel>,
@@ -91,7 +93,7 @@ impl AsyncComponent for DemoPlayerModel {
     type Input = DemoPlayerMsg;
     type Output = ();
     type Init = ();
-    type CommandOutput = ();
+    type CommandOutput = (std::path::PathBuf, bool);
 
     view! {
         #[name="main_window"]
@@ -110,6 +112,8 @@ impl AsyncComponent for DemoPlayerModel {
                     },
 
                     pack_start = &adw::SplitButton{
+                        #[watch]
+                        set_sensitive: !model.loading,
                         set_icon_name: "folder-symbolic",
                         set_tooltip_text: Some("Select demo folder"),
                         set_dropdown_tooltip: "Recent folders",
@@ -133,6 +137,8 @@ impl AsyncComponent for DemoPlayerModel {
                     },
 
                     pack_end = &adw::SplitButton{
+                        #[watch]
+                        set_sensitive: !model.loading,
                         set_icon_name: "user-trash-symbolic",
                         set_tooltip_text: Some("Delete selected demo(s)"),
                         connect_clicked => DemoPlayerMsg::DeleteSelected,
@@ -140,6 +146,8 @@ impl AsyncComponent for DemoPlayerModel {
                     },
 
                     pack_end = &gtk::Button{
+                        #[watch]
+                        set_sensitive: !model.loading,
                         set_icon_name: "view-refresh-symbolic",
                         set_tooltip_text: Some("Reload demo folder"),
                         connect_clicked => DemoPlayerMsg::ReloadFolder,
@@ -153,7 +161,30 @@ impl AsyncComponent for DemoPlayerModel {
                     set_shrink_start_child: false,
 
                     #[wrap(Some)]
-                    set_start_child = model.demo_list.widget(),
+                    set_start_child = &gtk::Overlay{
+                        #[wrap(Some)]
+                        set_child = model.demo_list.widget(),
+                        add_overlay = &gtk::Box{
+                            set_hexpand: true,
+                            set_vexpand: true,
+                            add_css_class: "view",
+                            #[watch]
+                            set_visible: model.loading,
+                            gtk::Box{
+                                set_halign: gtk::Align::Center,
+                                set_valign: gtk::Align::Center,
+                                set_hexpand: true,
+                                set_vexpand: true,
+                                set_orientation: gtk::Orientation::Vertical,
+                                gtk::Spinner{
+                                   set_spinning: true, 
+                                },
+                                gtk::Label{
+                                    set_label: "Loading demos",
+                                }
+                            }
+                        }
+                    },
 
                     #[wrap(Some)]
                     set_end_child = model.demo_details.widget(),
@@ -199,7 +230,7 @@ impl AsyncComponent for DemoPlayerModel {
         let about_wnd = AboutModel::builder().launch(root.clone()).detach();
 
         let model = Self {
-            demo_manager: DemoManager::new(),
+            demo_manager: Arc::new(Mutex::new(DemoManager::new())),
             rcon_manager: RconManager::new(settings.clone().borrow().rcon_pw.to_owned()),
             settings: settings,
             preferences_wnd: None,
@@ -207,6 +238,7 @@ impl AsyncComponent for DemoPlayerModel {
             demo_list,
             demo_details,
             selected_demo: None,
+            loading: false,
         };
 
         let widgets = view_output!();
@@ -292,11 +324,11 @@ impl AsyncComponent for DemoPlayerModel {
     ) {
         match message {
             DemoPlayerMsg::DeleteUnfinished => {
-                self.demo_manager.delete_empty_demos().await;
+                self.demo_manager.lock().unwrap().delete_empty_demos().await;
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
             DemoPlayerMsg::DeleteUnmarked => {
-                self.demo_manager.delete_unmarked_demos().await;
+                self.demo_manager.lock().unwrap().delete_unmarked_demos().await;
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
             DemoPlayerMsg::CleanReplays => 'replay_clean: {
@@ -357,14 +389,19 @@ impl AsyncComponent for DemoPlayerModel {
                 }
             }
             DemoPlayerMsg::OpenFolder(path, scroll_up) => match path {
-                None => self.demo_manager.clear(),
+                None => self.demo_manager.lock().unwrap().clear(),
                 Some(path) => {
-                    self.demo_manager.load_demos(&path).await;
+                    let dm = self.demo_manager.clone();
+                    self.loading = true;
+                    sender.spawn_oneshot_command(move|| {
+                        if path.exists() {
+                            dm.lock().unwrap().load_demos(&path);
+                        }else{
+                            dm.lock().unwrap().clear();
+                        }
+                        (path,scroll_up)
+                    });
 
-                    self.settings.borrow_mut().folder_opened(&path);
-                    self.settings.borrow().save();
-                    self.demo_details.emit(InfoPaneMsg::Display(None, false));
-                    sender.input(DemoPlayerMsg::DemosChanged(scroll_up));
                 }
             },
             DemoPlayerMsg::ReloadFolder => {
@@ -376,7 +413,7 @@ impl AsyncComponent for DemoPlayerModel {
             DemoPlayerMsg::DemoSelected(opt_name, reselected) => {
                 let mut demo = None::<Demo>;
                 if let Some(name) = opt_name {
-                    demo = self.demo_manager.get_demo(&name).cloned();
+                    demo = self.demo_manager.lock().unwrap().get_demo(&name).cloned();
                 }
                 self.demo_details
                     .emit(InfoPaneMsg::Display(demo.clone(), reselected));
@@ -386,7 +423,8 @@ impl AsyncComponent for DemoPlayerModel {
                 // TODO: show status in UI
                 match act {
                     RconAction::Play(name) => {
-                        let demo = self.demo_manager.get_demo(&name).unwrap();
+                        let dm = self.demo_manager.lock().unwrap();
+                        let demo = dm.get_demo(&name).unwrap();
                         let _ = self.rcon_manager.play_demo(demo).await;
                     }
                     RconAction::GotoTick(tick) => {
@@ -427,29 +465,43 @@ impl AsyncComponent for DemoPlayerModel {
                 let count = self.demo_list.model().get_selected_demos().len();
                 if util::delete_dialog(root, count).await {
                     for d in self.demo_list.model().get_selected_demos() {
-                        self.demo_manager.delete_demo(&d).await;
+                        self.demo_manager.lock().unwrap().delete_demo(&d).await;
                     }
                     sender.input(DemoPlayerMsg::DemosChanged(false));
                 }
             }
             DemoPlayerMsg::DemosChanged(scroll) => {
                 self.demo_list.emit(DemoListMsg::Update(
-                    self.demo_manager.get_demos().clone(),
+                    self.demo_manager.lock().unwrap().get_demos().clone(),
                     scroll,
                 ));
             }
             DemoPlayerMsg::DemoSave(demo) => {
                 let name = demo.filename.clone();
                 demo.save_json().await;
-                self.demo_manager.get_demos_mut().insert(name.clone(), demo);
+                self.demo_manager.lock().unwrap().get_demos_mut().insert(name.clone(), demo);
                 sender.input(DemoPlayerMsg::DemoSelected(Some(name), true));
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
             DemoPlayerMsg::DemoUpdate(demo) => {
-                self.demo_manager
+                self.demo_manager.lock().unwrap()
                     .get_demos_mut()
                     .insert(demo.filename.clone(), demo);
             }
         }
+    }
+    
+    async fn update_cmd(
+            &mut self,
+            message: Self::CommandOutput,
+            sender: AsyncComponentSender<Self>,
+            _root: &Self::Root,
+        ) {
+        let (path, scroll_up) = message;
+        self.settings.borrow_mut().folder_opened(&path);
+        self.settings.borrow().save();
+        self.loading = false;
+        self.demo_details.emit(InfoPaneMsg::Display(None, false));
+        sender.input(DemoPlayerMsg::DemosChanged(scroll_up));
     }
 }

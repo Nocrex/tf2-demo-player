@@ -1,16 +1,11 @@
 use anyhow::Result;
-use async_std::{
-    fs,
-    io::ReadExt,
-    path::{Path, PathBuf},
-    task,
-};
 use bitbuffer::BitRead;
 use chrono::{Datelike, Timelike};
 use glob::glob;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::Metadata, sync::Arc, time::SystemTime};
+use std::{collections::HashMap, sync::Arc, time::SystemTime};
+use std::{fs, io::Read};
 use tf_demo_parser::demo::header::Header;
 use trash;
 
@@ -30,44 +25,47 @@ pub struct Event {
     pub ev_type: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Demo {
-    pub path: PathBuf,
+    pub path: std::path::PathBuf,
     pub filename: String,
     pub header: Option<Header>,
     pub events: Vec<Event>,
     pub notes: Option<String>,
-    pub metadata: Option<Metadata>,
+    pub created: Option<SystemTime>,
+    pub size: Option<u64>,
+    #[serde(skip)]
     pub inspection: Option<Arc<crate::analyser::MatchState>>,
 }
 
 impl Demo {
     pub const TICKRATE: f32 = 66.667;
-    pub fn new(path: &Path) -> Self {
+    pub fn new(path: impl Into<std::path::PathBuf>) -> Self {
+        let path = path.into();
         Demo {
-            path: path.into(),
             filename: path.file_name().unwrap().to_str().unwrap().into(),
+            path: path,
             header: None,
             events: Vec::new(),
             notes: None,
-            metadata: None,
+            created: None,
+            size: None,
             inspection: None,
         }
     }
 
-    pub async fn read_data(&mut self) {
+    pub fn read_data(&mut self) {
         if let Some(_) = self.header {
             return;
         }
-        self.header = match async {
+
+        self.header = match (|| {
             let mut header = [0; 1080];
-            let mut f = fs::File::open(&self.path).await?;
-            f.read_exact(&mut header).await?;
+            let mut f = fs::File::open(&self.path)?;
+            f.read_exact(&mut header)?;
             let demo = tf_demo_parser::Demo::new(&header);
             anyhow::Ok(Header::read(&mut demo.get_stream())?)
-        }
-        .await
-        {
+        })() {
             Ok(header) => Some(header),
             Err(e) => {
                 log::warn!(
@@ -82,7 +80,7 @@ impl Demo {
         let mut bookmark_file = self.path.clone();
         bookmark_file.set_extension("json");
 
-        let file = fs::read(bookmark_file).await;
+        let file = fs::read(bookmark_file);
         if let Ok(char_bytes) = file {
             match serde_json::from_slice::<EventContainer>(&char_bytes) {
                 Ok(parsed) => {
@@ -98,16 +96,18 @@ impl Demo {
             }
         }
 
-        self.metadata = fs::metadata(&self.path)
-            .await
+        let meta = fs::metadata(&self.path)
             .inspect_err(|e| {
                 log::warn!("Failed reading metadata for {}, {}", self.path.display(), e)
             })
             .ok();
+
+        self.size = meta.as_ref().map(|m| m.len());
+        self.created = meta.and_then(|m| m.created().ok());
     }
 
     pub async fn full_analysis(&mut self) -> Result<Arc<crate::analyser::MatchState>> {
-        let f = fs::read(&self.path).await?;
+        let f = async_std::fs::read(&self.path).await?;
         let demo = tf_demo_parser::Demo::new(&f);
         let parser = tf_demo_parser::DemoParser::new_with_analyser(
             demo.get_stream(),
@@ -119,7 +119,7 @@ impl Demo {
         Ok(self.inspection.as_ref().unwrap().clone())
     }
 
-    pub async fn has_replay(&self, replays_folder: &Path) -> bool {
+    pub async fn has_replay(&self, replays_folder: &async_std::path::Path) -> bool {
         return replays_folder.join(&self.filename).exists().await;
     }
 
@@ -138,7 +138,7 @@ impl Demo {
             }
         }
         if notes.is_none() && self.events.is_empty() {
-            let _ = fs::remove_file(&bookmark_file).await.inspect_err(|e| {
+            let _ = fs::remove_file(&bookmark_file).inspect_err(|e| {
                 log::info!(
                     "Couldn't delete bookmark file {}, {}",
                     bookmark_file.display(),
@@ -157,7 +157,7 @@ impl Demo {
         };
         let json = serde_json::to_string_pretty(&container).unwrap();
 
-        let _ = fs::write(&bookmark_file, json).await.inspect_err(|e| {
+        let _ = fs::write(&bookmark_file, json).inspect_err(|e| {
             log::warn!(
                 "Couldn't save bookmark file {}, {}",
                 bookmark_file.display(),
@@ -173,11 +173,15 @@ impl Demo {
             .unwrap_or(Demo::TICKRATE)
     }
 
-    pub async fn convert_to_replay(&mut self, replays_folder: &Path, title: &str) -> Result<()> {
+    pub async fn convert_to_replay(
+        &mut self,
+        replays_folder: &async_std::path::Path,
+        title: &str,
+    ) -> Result<()> {
         create_replay_index_file(replays_folder).await?;
 
         let replay_demo_path = replays_folder.join(&self.filename);
-        fs::copy(&self.path, &replay_demo_path).await?;
+        fs::copy(&self.path, &replay_demo_path)?;
 
         let mut replay_handle: u32 = rand::thread_rng().gen();
         while replays_folder
@@ -188,13 +192,8 @@ impl Demo {
             replay_handle = rand::thread_rng().gen();
         }
 
-        let create_date: chrono::DateTime<chrono::Local> = chrono::DateTime::from(
-            self.metadata
-                .as_ref()
-                .map(|m| m.created().ok())
-                .map_or(None, |d| d)
-                .unwrap_or(SystemTime::now()),
-        );
+        let create_date: chrono::DateTime<chrono::Local> =
+            chrono::DateTime::from(self.created.clone().unwrap_or(SystemTime::now()));
 
         let kv_date = (create_date.day() - 1)
             | ((create_date.month() - 1) << 5)
@@ -202,7 +201,6 @@ impl Demo {
         let kv_time =
             create_date.hour() | (create_date.minute() << 5) | (create_date.second() << 11);
 
-        self.read_data().await;
         let dmx_file_content = format!(
             "replay_{replay_handle}
 {{
@@ -230,43 +228,67 @@ impl Demo {
         fs::write(
             replays_folder.join(format!("replay_{replay_handle}.dmx")),
             dmx_file_content,
-        )
-        .await?;
+        )?;
         Ok(())
     }
 }
 
-async fn create_replay_index_file(replay_folder: &Path) -> Result<()> {
+async fn create_replay_index_file(replay_folder: &async_std::path::Path) -> Result<()> {
     let index_path = replay_folder.join("replays.dmx");
     if !index_path.exists().await {
-        fs::write(index_path, "\"root\"\n{\n\t\"version\"\t\"0\"\n}").await?;
+        fs::write(index_path, "\"root\"\n{\n\t\"version\"\t\"0\"\n}")?;
     }
     Ok(())
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct DemoManager {
+    cache: HashMap<std::path::PathBuf, Demo>,
     demos: HashMap<String, Demo>,
 }
 
 impl DemoManager {
     pub fn new() -> Self {
-        DemoManager::default()
+        let cache = (|| {
+            if !std::fs::exists("demos.cache")? {
+                Ok(HashMap::new())
+            } else {
+                let data = std::fs::read("demos.cache")?;
+                Ok(bitcode::deserialize(&data)?)
+            }
+        })()
+        .unwrap_or_else(|e: anyhow::Error| {
+            log::warn!("Failed to load demo cache {:?}", e);
+            HashMap::new()
+        });
+        Self {
+            cache: cache,
+            demos: HashMap::new(),
+        }
     }
 
     pub fn clear(&mut self) {
         self.demos.clear();
     }
 
-    pub async fn load_demos(&mut self, folder_path: impl Into<PathBuf>) {
-        let folder_path: PathBuf = folder_path.into();
+    pub fn load_demos(&mut self, folder_path: impl Into<std::path::PathBuf>) {
+        let folder_path: std::path::PathBuf = folder_path.into().canonicalize().unwrap();
         self.demos.clear();
         for path in glob(&format!("{}/*.dem", folder_path.display().to_string())).unwrap() {
-            let d = Demo::new(Path::new(path.unwrap().to_str().unwrap()));
+            let path = path.unwrap();
+            let d = self
+                .cache
+                .get(&path)
+                .cloned()
+                .unwrap_or_else(|| Demo::new(std::path::Path::new(&path)));
             self.demos.insert(d.filename.to_owned(), d);
         }
         for demo in &mut self.demos.values_mut() {
-            demo.read_data().await;
+            demo.read_data();
+            self.cache.entry(demo.path.clone()).or_insert(demo.clone());
+        }
+        if let Err(e) = fs::write("demos.cache", bitcode::serialize(&self.cache).unwrap()) {
+            log::warn!("Failed to save cache file: {e:?}");
         }
     }
 
@@ -288,7 +310,7 @@ impl DemoManager {
         let mut bookmark_path = demo.path.clone();
         bookmark_path.set_extension("json");
 
-        let _ = task::spawn_blocking(move || {
+        let _ = async_std::task::spawn_blocking(move || {
             if let Err(e) = trash::delete(demo.path.as_path()) {
                 log::info!("Couldn't delete {}, {}", demo.path.display(), e);
             }

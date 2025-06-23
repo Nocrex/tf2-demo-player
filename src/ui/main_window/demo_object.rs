@@ -23,18 +23,16 @@ impl DemoObject {
                 .property("duration", header.duration);
         }
 
-        if let Some(meta) = &demo.metadata {
-            b = b
-                .property(
-                    "created",
-                    meta.created().map_or(0, |t| {
-                        t.duration_since(SystemTime::UNIX_EPOCH)
-                            .unwrap()
-                            .as_millis() as i64
-                    }),
-                )
-                .property("size", meta.len());
-        }
+        b = b
+            .property(
+                "created",
+                demo.created.map_or(0, |t| {
+                    t.duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as i64
+                }),
+            )
+            .property("size", demo.size.unwrap_or(0));
 
         b.build()
     }
