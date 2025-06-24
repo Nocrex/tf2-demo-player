@@ -206,7 +206,9 @@ impl SimpleComponent for EventViewModel {
             list_model: FactoryVecDeque::builder()
                 .launch_default()
                 .forward(sender.input_sender(), |ind| EventViewMsg::Selected(ind)),
-            event_dialog: EventDialogModel::builder().launch(root.clone()).detach(),
+            event_dialog: EventDialogModel::builder()
+                .launch(root.clone())
+                .forward(sender.output_sender(), |t| t),
             inspection: None,
             tps: 0.0,
             filter: EventListFilter {
@@ -285,13 +287,14 @@ struct EventDialogModel {
 enum EventDialogMsg {
     Update(Option<(Arc<MatchState>, usize, f32)>),
     CopyMessage,
+    Goto,
 }
 
 #[relm4::component]
 impl Component for EventDialogModel {
     type Init = gtk::Box;
     type Input = EventDialogMsg;
-    type Output = ();
+    type Output = u32;
     type CommandOutput = ();
 
     view! {
@@ -321,6 +324,7 @@ impl Component for EventDialogModel {
                             set_end_widget = &gtk::Button{
                                 set_icon_name: "find-location-symbolic",
                                 set_tooltip_text: Some("Set playbar to event"),
+                                connect_clicked => EventDialogMsg::Goto,
                             }
                         },
                         gtk::Label{
@@ -436,7 +440,7 @@ impl Component for EventDialogModel {
                                     set_label: &format!("{}<span foreground=\"{}\">{}</span>{}{}",
                                         get_message_kind_prefix(&chat.kind),
                                         get_team_color_string(chat.team.as_ref()),
-                                        chat.from,
+                                        markup_escape_text(&chat.from),
                                         if chat.from.is_empty() {""} else {": "},
                                         markup_escape_text(&chat.text),
                                     ),
@@ -586,6 +590,16 @@ impl Component for EventDialogModel {
                     let disp = gtk::gdk::Display::default().unwrap();
                     let clip = disp.clipboard();
                     clip.set_text(&msg);
+                }
+            }
+            EventDialogMsg::Goto => {
+                if let Some(ev) = self
+                    .inspection
+                    .as_ref()
+                    .zip(self.selected_event)
+                    .and_then(|(i, s)| i.events.get(s))
+                {
+                    let _ = sender.output(ev.tick.into());
                 }
             }
         }
