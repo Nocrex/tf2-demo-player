@@ -173,16 +173,23 @@ impl AsyncComponent for DemoPlayerModel {
                                     bu.child().unwrap().set_halign(gtk::Align::Start);
                                     bu.child().and_downcast_ref::<gtk::Label>().unwrap().set_wrap(true);
                                     bu.child().and_downcast_ref::<gtk::Label>().unwrap().set_wrap_mode(gtk::pango::WrapMode::WordChar);
+                                    bu.child().unwrap().inline_css("font-weight: normal");
                                     let path = path.clone();
                                     let sender = sender.clone();
                                     bu.connect_clicked(move |_|{
                                         sender.input(DemoPlayerMsg::OpenFolder(Some(path.clone()), true));
                                     });
+                                    bu.add_css_class("flat");
                                     b.append(&bu);
                                 }
 
                                 b
                             }),
+                        },
+                        gtk::Separator{
+                            set_orientation: gtk::Orientation::Horizontal,
+                            set_margin_top: 5,
+                            set_margin_bottom: 5,
                         },
                         gtk::Box {
                             set_valign: gtk::Align::End,
