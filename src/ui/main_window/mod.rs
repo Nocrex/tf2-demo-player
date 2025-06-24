@@ -108,6 +108,7 @@ impl AsyncComponent for DemoPlayerModel {
 
             adw::ToolbarView {
                 add_top_bar = &adw::HeaderBar{
+                    set_decoration_layout: Some(":minimize,maximise,close"),
                     #[wrap(Some)]
                     set_title_widget = &adw::WindowTitle{
                         set_title: "Demo Player",
