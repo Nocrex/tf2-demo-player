@@ -271,7 +271,11 @@ impl DemoManager {
         self.demos.clear();
     }
 
-    pub fn load_demos(&mut self, folder_path: impl Into<std::path::PathBuf>) {
+    pub fn load_demos(
+        &mut self,
+        folder_path: impl Into<std::path::PathBuf>,
+        progress_cb: impl Fn(usize, usize),
+    ) {
         let folder_path: std::path::PathBuf = folder_path.into().canonicalize().unwrap();
         self.demos.clear();
         for path in glob(&format!("{}/*.dem", folder_path.display().to_string())).unwrap() {
@@ -283,9 +287,12 @@ impl DemoManager {
                 .unwrap_or_else(|| Demo::new(std::path::Path::new(&path)));
             self.demos.insert(d.filename.to_owned(), d);
         }
-        for demo in &mut self.demos.values_mut() {
+        let total = self.demos.len();
+        progress_cb(1, total);
+        for (i, demo) in &mut self.demos.values_mut().enumerate() {
             demo.read_data();
             self.cache.entry(demo.path.clone()).or_insert(demo.clone());
+            progress_cb(i + 2, total);
         }
         if let Err(e) = fs::write("demos.cache", bitcode::serialize(&self.cache).unwrap()) {
             log::warn!("Failed to save cache file: {e:?}");

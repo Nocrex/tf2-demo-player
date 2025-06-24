@@ -71,13 +71,19 @@ relm4::new_stateless_action!(DeleteUnfinishedAction, AppMenu, "clean-unfinished"
 relm4::new_stateless_action!(DeleteUnmarkedAction, AppMenu, "clean-unmarked");
 relm4::new_stateless_action!(CleanReplaysAction, AppMenu, "clean-replays");
 
+#[derive(Debug)]
+pub enum DemoPlayerCmd {
+    Progress(usize, usize),
+    Done(std::path::PathBuf, bool),
+}
+
 pub struct DemoPlayerModel {
     demo_manager: Arc<Mutex<DemoManager>>,
     rcon_manager: RconManager,
     settings: Rc<RefCell<Settings>>,
 
     selected_demo: Option<Demo>,
-    loading: bool,
+    loading: Option<(usize, usize)>,
 
     preferences_wnd: Option<Controller<PreferencesModel>>,
     about_wnd: Controller<AboutModel>,
@@ -91,7 +97,7 @@ impl AsyncComponent for DemoPlayerModel {
     type Input = DemoPlayerMsg;
     type Output = ();
     type Init = ();
-    type CommandOutput = (std::path::PathBuf, bool);
+    type CommandOutput = DemoPlayerCmd;
 
     view! {
         #[name="main_window"]
@@ -116,7 +122,7 @@ impl AsyncComponent for DemoPlayerModel {
 
                     pack_end = &adw::SplitButton{
                         #[watch]
-                        set_sensitive: !model.loading,
+                        set_sensitive: model.loading.is_none(),
                         set_icon_name: "user-trash-symbolic",
                         set_tooltip_text: Some("Delete selected demo(s)"),
                         connect_clicked => DemoPlayerMsg::DeleteSelected,
@@ -125,7 +131,7 @@ impl AsyncComponent for DemoPlayerModel {
 
                     pack_end = &gtk::Button{
                         #[watch]
-                        set_sensitive: !model.loading,
+                        set_sensitive: model.loading.is_none(),
                         set_icon_name: "view-refresh-symbolic",
                         set_tooltip_text: Some("Reload demo folder"),
                         connect_clicked => DemoPlayerMsg::ReloadFolder,
@@ -143,7 +149,7 @@ impl AsyncComponent for DemoPlayerModel {
                             set_halign: gtk::Align::Start,
                             gtk::Button{
                                 #[watch]
-                                set_sensitive: !model.loading,
+                                set_sensitive: model.loading.is_none(),
                                 add_css_class: "flat",
                                 add_css_class: "circular",
                                 set_icon_name: "folder-symbolic",
@@ -161,7 +167,7 @@ impl AsyncComponent for DemoPlayerModel {
                         },
                         gtk::ScrolledWindow{
                             #[watch]
-                            set_sensitive: !model.loading,
+                            set_sensitive: model.loading.is_none(),
                             set_vexpand: true,
                             #[watch]
                             set_child: Some(&{
@@ -227,7 +233,7 @@ impl AsyncComponent for DemoPlayerModel {
                                 set_vexpand: true,
                                 add_css_class: "view",
                                 #[watch]
-                                set_visible: model.loading,
+                                set_visible: model.loading.is_some(),
                                 gtk::Box{
                                     set_halign: gtk::Align::Center,
                                     set_valign: gtk::Align::Center,
@@ -239,6 +245,10 @@ impl AsyncComponent for DemoPlayerModel {
                                     },
                                     gtk::Label{
                                         set_label: "Loading demos",
+                                    },
+                                    gtk::Label{
+                                        #[watch]
+                                        set_label: &format!("{}/{}", model.loading.map_or(0, |l|l.0), model.loading.map_or(0, |l|l.1))
                                     }
                                 }
                             }
@@ -293,7 +303,7 @@ impl AsyncComponent for DemoPlayerModel {
             demo_list,
             demo_details,
             selected_demo: None,
-            loading: false,
+            loading: None,
         };
 
         let widgets = view_output!();
@@ -436,14 +446,18 @@ impl AsyncComponent for DemoPlayerModel {
                 None => self.demo_manager.lock().unwrap().clear(),
                 Some(path) => {
                     let dm = self.demo_manager.clone();
-                    self.loading = true;
-                    sender.spawn_oneshot_command(move || {
+                    self.loading = Some((0, 0));
+                    sender.spawn_command(move |s| {
                         if path.exists() {
-                            dm.lock().unwrap().load_demos(&path);
+                            dm.lock().unwrap().load_demos(&path, |current, total| {
+                                if current % 10 == 0 {
+                                    s.emit(DemoPlayerCmd::Progress(current, total))
+                                }
+                            });
                         } else {
                             dm.lock().unwrap().clear();
                         }
-                        (path, scroll_up)
+                        s.emit(DemoPlayerCmd::Done(path, scroll_up))
                     });
                 }
             },
@@ -556,11 +570,17 @@ impl AsyncComponent for DemoPlayerModel {
         sender: AsyncComponentSender<Self>,
         _root: &Self::Root,
     ) {
-        let (path, scroll_up) = message;
-        self.settings.borrow_mut().folder_opened(&path);
-        self.settings.borrow().save();
-        self.loading = false;
-        self.demo_details.emit(InfoPaneMsg::Display(None, false));
-        sender.input(DemoPlayerMsg::DemosChanged(scroll_up));
+        match message {
+            DemoPlayerCmd::Progress(current, total) => {
+                self.loading = Some((current, total));
+            }
+            DemoPlayerCmd::Done(path, scroll_up) => {
+                self.settings.borrow_mut().folder_opened(&path);
+                self.settings.borrow().save();
+                self.loading = None;
+                self.demo_details.emit(InfoPaneMsg::Display(None, false));
+                sender.input(DemoPlayerMsg::DemosChanged(scroll_up));
+            }
+        }
     }
 }
