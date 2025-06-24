@@ -1,7 +1,7 @@
 <img src="data/logo.svg" height=80/>
 
 # TF2 Demo Player
-This is an in-development application for managing and playing back TF2 demos, though it may work with other source games aswell.
+This is an application for managing and playing back TF2 demos.
 
 ![](images/ss1.png)
 
@@ -13,7 +13,7 @@ This is an in-development application for managing and playing back TF2 demos, t
     + Skip to timestamp/bookmark
 + Add descriptions/notes to demos
 + Convert demos to replays with acurrate metadata
-+ Parse demos and display players and chat messages (with more stuff to be added soon)
++ Parse demos and display players, chat messages, kills, votes and some other stuff.
 
 ## Usage
 To be able to use the playback functions of the app TF2 needs to be configured to enable client rcon.
@@ -34,3 +34,5 @@ Once the required libraries are installed, building should be as easy as typing
 cargo build
 ```
 in the project root.
+
+On windows the easiest way to build it is using MSYS2, by installing the mingw versions of gtk4 and libadwaita there and then running `package_win.sh` within it. This produces a "pack" folder that contains all the files needed for the program to run outside of msys.
