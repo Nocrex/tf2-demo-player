@@ -13,7 +13,7 @@ pub struct Settings {
     pub event_skip_predelay: f32,
     pub doubleclick_play: bool,
     pub pause_after_seek: bool,
-    pub recent_folders: Vec<PathBuf>,
+    pub favorited_folders: Vec<PathBuf>,
 
     #[serde(skip)]
     pub first_launch: bool,
@@ -24,12 +24,12 @@ impl Default for Settings {
         let tf_folder = util::steam::tf_folder();
         Self {
             demo_folder_path: tf_folder.clone().map(|p| p.join("tf/demos")),
-            tf_folder_path: tf_folder,
+            tf_folder_path: tf_folder.clone(),
             rcon_pw: Default::default(),
             event_skip_predelay: 30.0,
             doubleclick_play: false,
             pause_after_seek: true,
-            recent_folders: Vec::new(),
+            favorited_folders: tf_folder.map_or_else(||Vec::new(), |f|vec![f]),
 
             first_launch: false,
         }
@@ -58,10 +58,26 @@ impl Settings {
     }
 
     pub fn folder_opened(&mut self, path: &PathBuf) {
-        self.recent_folders.retain(|p| p != path);
-        self.recent_folders.insert(0, path.to_owned());
-        self.recent_folders.truncate(5);
         self.demo_folder_path = Some(path.into());
+    }
+
+    pub fn toggle_favorite(&mut self) {
+        if let Some(path) = &self.demo_folder_path {
+            if self.favorited_folders.contains(path) {
+                self.favorited_folders.retain(|p| *p != *path);
+            } else {
+                self.favorited_folders.insert(0, path.clone());
+            }
+            self.save();
+        }
+    }
+    
+    pub fn favorited(&self) -> bool {
+        if let Some(path) = &self.demo_folder_path {
+            self.favorited_folders.contains(path)
+        }else{
+            false
+        }
     }
 
     pub fn replays_folder(&self) -> Option<PathBuf> {

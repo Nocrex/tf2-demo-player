@@ -3,7 +3,6 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use adw::prelude::*;
-use gtk::gio;
 use relm4::actions::RelmAction;
 use relm4::actions::RelmActionGroup;
 use relm4::prelude::*;
@@ -45,6 +44,7 @@ pub enum RconAction {
 pub enum DemoPlayerMsg {
     OpenSettings,
     SettingsClosed(Settings),
+    ShowAbout,
 
     DeleteSelected,
     DeleteUnfinished,
@@ -54,6 +54,8 @@ pub enum DemoPlayerMsg {
     OpenFolder(Option<std::path::PathBuf>, bool),
     SelectFolder,
     ReloadFolder,
+    ShowSidebar,
+    FavoriteFolder,
 
     DemosChanged(bool),
 
@@ -65,13 +67,9 @@ pub enum DemoPlayerMsg {
 }
 
 relm4::new_action_group!(AppMenu, "app-menu");
-relm4::new_stateless_action!(OpenSettingsAction, AppMenu, "open-settings");
 relm4::new_stateless_action!(DeleteUnfinishedAction, AppMenu, "clean-unfinished");
 relm4::new_stateless_action!(DeleteUnmarkedAction, AppMenu, "clean-unmarked");
 relm4::new_stateless_action!(CleanReplaysAction, AppMenu, "clean-replays");
-
-relm4::new_stateful_action!(OpenFolderAction, AppMenu, "open-folder", String, ());
-relm4::new_stateless_action!(ShowAboutAction, AppMenu, "show-about");
 
 pub struct DemoPlayerModel {
     demo_manager: Arc<Mutex<DemoManager>>,
@@ -111,29 +109,9 @@ impl AsyncComponent for DemoPlayerModel {
                         set_subtitle: model.settings.borrow().demo_folder_path.as_ref().map_or("(unset)", |p|p.to_str().unwrap()),
                     },
 
-                    pack_start = &adw::SplitButton{
-                        #[watch]
-                        set_sensitive: !model.loading,
-                        set_icon_name: "folder-symbolic",
-                        set_tooltip_text: Some("Select demo folder"),
-                        set_dropdown_tooltip: "Recent folders",
-                        connect_clicked => DemoPlayerMsg::SelectFolder,
-                        #[watch]
-                        set_menu_model: Some(&{
-                            let m_model = gio::Menu::new();
-                            for folder in &model.settings.borrow().recent_folders {
-                                let folder = folder.to_str().unwrap();
-                                let item = gio::MenuItem::new(Some(folder), None);
-                                item.set_action_and_target_value(Some("app-menu.open-folder"), Some(&folder.to_variant()));
-                                m_model.append_item(&item);
-                            }
-                            m_model
-                        }),
-                    },
-
-                    pack_end = &gtk::MenuButton{
+                    pack_start = &gtk::Button{
                         set_icon_name: "open-menu-symbolic",
-                        set_menu_model: Some(&app_menu)
+                        connect_clicked => DemoPlayerMsg::ShowSidebar,
                     },
 
                     pack_end = &adw::SplitButton{
@@ -154,41 +132,115 @@ impl AsyncComponent for DemoPlayerModel {
                     }
                 },
                 #[wrap(Some)]
-                set_content: pane = &gtk::Paned{
-                    set_orientation: gtk::Orientation::Vertical,
-                    set_position: 400,
-                    set_shrink_end_child: false,
-                    set_shrink_start_child: false,
+                set_content: sidebar = &adw::OverlaySplitView{
+                    set_collapsed: true,
 
                     #[wrap(Some)]
-                    set_start_child = &gtk::Overlay{
-                        #[wrap(Some)]
-                        set_child = model.demo_list.widget(),
-                        add_overlay = &gtk::Box{
-                            set_hexpand: true,
-                            set_vexpand: true,
-                            add_css_class: "view",
+                    set_sidebar = &gtk::Box{
+                        set_orientation: gtk::Orientation::Vertical,
+                        set_margin_all: 5,
+                        gtk::Box{
+                            set_halign: gtk::Align::Start,
+                            gtk::Button{
+                                #[watch]
+                                set_sensitive: !model.loading,
+                                add_css_class: "flat",
+                                add_css_class: "circular",
+                                set_icon_name: "folder-symbolic",
+                                connect_clicked => DemoPlayerMsg::SelectFolder,
+                                set_tooltip_text: Some("Open folder"),
+                            },
+                            gtk::Button{
+                                #[watch]
+                                set_icon_name: if model.settings.borrow().favorited() {relm4_icons::icon_names::STAR_LARGE} else {relm4_icons::icon_names::STAR_OUTLINE_ROUNDED},
+                                add_css_class: "flat",
+                                add_css_class: "circular",
+                                connect_clicked => DemoPlayerMsg::FavoriteFolder,
+                                set_tooltip_text: Some("Favorite current folder"),
+                            },
+                        },
+                        gtk::ScrolledWindow{
                             #[watch]
-                            set_visible: model.loading,
-                            gtk::Box{
-                                set_halign: gtk::Align::Center,
-                                set_valign: gtk::Align::Center,
-                                set_hexpand: true,
-                                set_vexpand: true,
-                                set_orientation: gtk::Orientation::Vertical,
-                                gtk::Spinner{
-                                   set_spinning: true, 
-                                },
-                                gtk::Label{
-                                    set_label: "Loading demos",
+                            set_sensitive: !model.loading,
+                            set_vexpand: true,
+                            #[watch]
+                            set_child: Some(&{
+                                let b = gtk::Box::new(gtk::Orientation::Vertical, 5);
+
+                                for path in &model.settings.borrow().favorited_folders {
+                                    let bu = gtk::Button::new();
+                                    bu.set_label(&path.display().to_string());
+                                    bu.child().unwrap().set_halign(gtk::Align::Start);
+                                    bu.child().and_downcast_ref::<gtk::Label>().unwrap().set_wrap(true);
+                                    bu.child().and_downcast_ref::<gtk::Label>().unwrap().set_wrap_mode(gtk::pango::WrapMode::WordChar);
+                                    let path = path.clone();
+                                    let sender = sender.clone();
+                                    bu.connect_clicked(move |_|{
+                                        sender.input(DemoPlayerMsg::OpenFolder(Some(path.clone()), true));
+                                    });
+                                    b.append(&bu);
                                 }
-                            }
+
+                                b
+                            }),
+                        },
+                        gtk::Box {
+                            set_valign: gtk::Align::End,
+                            set_halign: gtk::Align::Start,
+                            gtk::Button{
+                                set_icon_name: relm4_icons::icon_names::SETTINGS,
+                                add_css_class: "flat",
+                                add_css_class: "circular",
+                                connect_clicked => DemoPlayerMsg::OpenSettings,
+                                set_tooltip_text: Some("Settings"),
+                            },
+                            gtk::Button{
+                                set_icon_name: relm4_icons::icon_names::INFO_OUTLINE,
+                                add_css_class: "flat",
+                                add_css_class: "circular",
+                                connect_clicked => DemoPlayerMsg::ShowAbout,
+                                set_tooltip_text: Some("About"),
+                            },
                         }
                     },
 
                     #[wrap(Some)]
-                    set_end_child = model.demo_details.widget(),
-                }
+                    set_content: pane = &gtk::Paned{
+                        set_orientation: gtk::Orientation::Vertical,
+                        set_position: 400,
+                        set_shrink_end_child: false,
+                        set_shrink_start_child: false,
+
+                        #[wrap(Some)]
+                        set_start_child = &gtk::Overlay{
+                            #[wrap(Some)]
+                            set_child = model.demo_list.widget(),
+                            add_overlay = &gtk::Box{
+                                set_hexpand: true,
+                                set_vexpand: true,
+                                add_css_class: "view",
+                                #[watch]
+                                set_visible: model.loading,
+                                gtk::Box{
+                                    set_halign: gtk::Align::Center,
+                                    set_valign: gtk::Align::Center,
+                                    set_hexpand: true,
+                                    set_vexpand: true,
+                                    set_orientation: gtk::Orientation::Vertical,
+                                    gtk::Spinner{
+                                       set_spinning: true,
+                                    },
+                                    gtk::Label{
+                                        set_label: "Loading demos",
+                                    }
+                                }
+                            }
+                        },
+
+                        #[wrap(Some)]
+                        set_end_child = model.demo_details.widget(),
+                    }
+                },
             }
         }
     }
@@ -198,10 +250,6 @@ impl AsyncComponent for DemoPlayerModel {
             "Delete 0s demos" => DeleteUnfinishedAction,
             "Delete demos without bookmarks" => DeleteUnmarkedAction,
             "Clean replays" => CleanReplaysAction,
-        },
-        app_menu: {
-            "Settings" => OpenSettingsAction,
-            "About" => ShowAboutAction,
         }
     }
 
@@ -249,13 +297,6 @@ impl AsyncComponent for DemoPlayerModel {
         {
             let mut group = RelmActionGroup::<AppMenu>::new();
 
-            let settings_sender = sender.clone();
-            let settings_action: RelmAction<OpenSettingsAction> =
-                RelmAction::new_stateless(move |_| {
-                    settings_sender.input(DemoPlayerMsg::OpenSettings);
-                });
-            group.add_action(settings_action);
-
             let delete_unfinished_sender = sender.clone();
             let delete_unfinished_action: RelmAction<DeleteUnfinishedAction> =
                 RelmAction::new_stateless(move |_| {
@@ -276,20 +317,6 @@ impl AsyncComponent for DemoPlayerModel {
                     clean_replays_sender.input(DemoPlayerMsg::CleanReplays);
                 });
             group.add_action(clean_replays_action);
-
-            let open_folder_sender = sender.clone();
-            let open_folder_action: RelmAction<OpenFolderAction> =
-                RelmAction::new_with_target_value(move |_, val: String| {
-                    open_folder_sender.input(DemoPlayerMsg::OpenFolder(Some(val.into()), true));
-                });
-            group.add_action(open_folder_action);
-
-            let about_wnd_sender = model.about_wnd.sender().clone();
-            let show_about_action: RelmAction<ShowAboutAction> =
-                RelmAction::new_stateless(move |_| {
-                    about_wnd_sender.emit(AboutMsg::Open);
-                });
-            group.add_action(show_about_action);
 
             let actions = group.into_action_group();
             widgets
@@ -316,8 +343,9 @@ impl AsyncComponent for DemoPlayerModel {
         AsyncComponentParts { model, widgets }
     }
 
-    async fn update(
+    async fn update_with_view(
         &mut self,
+        widgets: &mut Self::Widgets,
         message: Self::Input,
         sender: AsyncComponentSender<Self>,
         root: &Self::Root,
@@ -328,7 +356,11 @@ impl AsyncComponent for DemoPlayerModel {
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
             DemoPlayerMsg::DeleteUnmarked => {
-                self.demo_manager.lock().unwrap().delete_unmarked_demos().await;
+                self.demo_manager
+                    .lock()
+                    .unwrap()
+                    .delete_unmarked_demos()
+                    .await;
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
             DemoPlayerMsg::CleanReplays => 'replay_clean: {
@@ -380,6 +412,11 @@ impl AsyncComponent for DemoPlayerModel {
                 self.rcon_manager = RconManager::new(self.settings.borrow().rcon_pw.clone());
                 self.preferences_wnd.take();
             }
+            DemoPlayerMsg::ShowSidebar => {
+                widgets
+                    .sidebar
+                    .set_show_sidebar(!widgets.sidebar.shows_sidebar());
+            }
             DemoPlayerMsg::SelectFolder => {
                 let dia = gtk::FileDialog::builder().build();
                 let res = dia.select_folder_future(Some(root)).await;
@@ -393,15 +430,14 @@ impl AsyncComponent for DemoPlayerModel {
                 Some(path) => {
                     let dm = self.demo_manager.clone();
                     self.loading = true;
-                    sender.spawn_oneshot_command(move|| {
+                    sender.spawn_oneshot_command(move || {
                         if path.exists() {
                             dm.lock().unwrap().load_demos(&path);
-                        }else{
+                        } else {
                             dm.lock().unwrap().clear();
                         }
-                        (path,scroll_up)
+                        (path, scroll_up)
                     });
-
                 }
             },
             DemoPlayerMsg::ReloadFolder => {
@@ -428,7 +464,10 @@ impl AsyncComponent for DemoPlayerModel {
                         let _ = self.rcon_manager.play_demo(demo).await;
                     }
                     RconAction::GotoTick(tick) => {
-                        let _ = self.rcon_manager.skip_to_tick(tick, self.settings.borrow().pause_after_seek).await;
+                        let _ = self
+                            .rcon_manager
+                            .skip_to_tick(tick, self.settings.borrow().pause_after_seek)
+                            .await;
                     }
                     RconAction::GotoEvent(ev) => {
                         let _ = self
@@ -479,24 +518,37 @@ impl AsyncComponent for DemoPlayerModel {
             DemoPlayerMsg::DemoSave(demo) => {
                 let name = demo.filename.clone();
                 demo.save_json().await;
-                self.demo_manager.lock().unwrap().get_demos_mut().insert(name.clone(), demo);
+                self.demo_manager
+                    .lock()
+                    .unwrap()
+                    .get_demos_mut()
+                    .insert(name.clone(), demo);
                 sender.input(DemoPlayerMsg::DemoSelected(Some(name), true));
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
             DemoPlayerMsg::DemoUpdate(demo) => {
-                self.demo_manager.lock().unwrap()
+                self.demo_manager
+                    .lock()
+                    .unwrap()
                     .get_demos_mut()
                     .insert(demo.filename.clone(), demo);
             }
+            DemoPlayerMsg::FavoriteFolder => {
+                self.settings.borrow_mut().toggle_favorite();
+            }
+            DemoPlayerMsg::ShowAbout => {
+                self.about_wnd.emit(AboutMsg::Open);
+            }
         }
+        self.update_view(widgets, sender);
     }
-    
+
     async fn update_cmd(
-            &mut self,
-            message: Self::CommandOutput,
-            sender: AsyncComponentSender<Self>,
-            _root: &Self::Root,
-        ) {
+        &mut self,
+        message: Self::CommandOutput,
+        sender: AsyncComponentSender<Self>,
+        _root: &Self::Root,
+    ) {
         let (path, scroll_up) = message;
         self.settings.borrow_mut().folder_opened(&path);
         self.settings.borrow().save();

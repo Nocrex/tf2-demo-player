@@ -17,4 +17,7 @@ icons = [
     "check-round-outline",
     "horizontal-arrows",
     "discover",
+    "star-outline-rounded",
+    "star-large",
+    "settings",
 ]
