@@ -451,9 +451,7 @@ impl AsyncComponent for DemoPlayerModel {
                     sender.spawn_command(move |s| {
                         if path.exists() {
                             dm.lock().unwrap().load_demos(&path, |current, total| {
-                                if current % 10 == 0 {
-                                    s.emit(DemoPlayerCmd::Progress(current, total))
-                                }
+                                s.emit(DemoPlayerCmd::Progress(current, total))
                             });
                         } else {
                             dm.lock().unwrap().clear();
