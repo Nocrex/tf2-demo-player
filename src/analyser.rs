@@ -31,7 +31,7 @@ use tf_demo_parser::{
 pub struct UserInfo {
     pub last_class: Option<Class>,
     pub name: Option<String>,
-    pub user_id: UserId,
+    pub user_id: Option<UserId>,
     pub steam_id: Option<String>,
     pub entity_id: Option<EntityId>,
     pub last_team: Option<Team>,
@@ -46,7 +46,7 @@ impl From<&tf_demo_parser::demo::data::UserInfo> for UserInfo {
             name: Some(info.player_info.name.clone()),
             steam_id: Some(info.player_info.steam_id.clone()),
             entity_id: Some(info.entity_id),
-            user_id: info.player_info.user_id,
+            user_id: Some(info.player_info.user_id),
             ..Default::default()
         }
     }
@@ -119,9 +119,9 @@ impl Death {
         const TF_DEATH_FEIGN_DEATH: u16 = 0x0020; // feign death
         let assister = if event.assister < (16 * 1024) {
             Some(analyser.stable_user(
-                |u| u.user_id == event.assister,
+                |u| u.user_id == Some(event.assister.into()),
                 || UserInfo {
-                    user_id: event.assister.into(),
+                    user_id: Some(event.assister.into()),
                     ..Default::default()
                 },
             ))
@@ -132,9 +132,9 @@ impl Death {
             None
         } else {
             Some(analyser.stable_user(
-                |u| u.user_id == event.attacker,
+                |u| u.user_id == Some(event.attacker.into()),
                 || UserInfo {
-                    user_id: event.attacker.into(),
+                    user_id: Some(event.attacker.into()),
                     ..Default::default()
                 },
             ))
@@ -144,9 +144,9 @@ impl Death {
             killer: killer,
             weapon: event.weapon.to_string(),
             victim: analyser.stable_user(
-                |u| u.user_id == event.user_id,
+                |u| u.user_id == Some(event.user_id.into()),
                 || UserInfo {
-                    user_id: event.user_id.into(),
+                    user_id: Some(event.user_id.into()),
                     ..Default::default()
                 },
             ),
@@ -485,27 +485,23 @@ impl Analyser {
     }
 
     fn handle_event(&mut self, event: &GameEvent, tick: DemoTick) {
-        const WIN_REASON_TIME_LIMIT: u8 = 6;
-
         match event {
             GameEvent::PlayerDeath(event) => {
                 let value = MatchEventType::Kill(Death::from_event(event, self));
                 self.state.events.push(MatchEvent { tick: tick, value });
             }
             GameEvent::TeamPlayRoundWin(event) => {
-                if event.win_reason != WIN_REASON_TIME_LIMIT {
-                    self.state.events.push(MatchEvent {
-                        tick,
-                        value: MatchEventType::RoundEnd(event.into()),
-                    });
-                }
+                self.state.events.push(MatchEvent {
+                    tick,
+                    value: MatchEventType::RoundEnd(event.into()),
+                });
             }
             GameEvent::PlayerSpawn(spawn) => {
                 let spawn = Spawn::from_event(spawn, tick);
                 let suid = self.stable_user(
-                    |u| u.user_id == spawn.user,
+                    |u| u.user_id == Some(spawn.user),
                     || UserInfo {
-                        user_id: spawn.user,
+                        user_id: Some(spawn.user),
                         ..Default::default()
                     },
                 );
@@ -587,9 +583,9 @@ impl Analyser {
                     id.push_str(&format!(" {}", conn.user_id));
                 }
                 let suid = self.stable_user(
-                    |u| u.user_id == Into::<UserId>::into(conn.user_id),
+                    |u| u.steam_id == Some(id.clone()) || u.name == Some(conn.name.to_string()),
                     || UserInfo {
-                        user_id: conn.user_id.into(),
+                        user_id: Some(conn.user_id.into()),
                         steam_id: Some(conn.network_id.to_string()),
                         name: Some(conn.name.to_string()),
                         ..Default::default()
@@ -599,6 +595,7 @@ impl Analyser {
                 self.state.users[suid.0]
                     .connection_events
                     .push((tick, c.value.clone()));
+                self.state.users[suid.0].user_id = Some(conn.user_id.into());
                 self.state.events.push(MatchEvent {
                     tick,
                     value: MatchEventType::Connection(c),
@@ -610,9 +607,13 @@ impl Analyser {
                     id.push_str(&format!(" {}", discon.user_id));
                 }
                 let suid = self.stable_user(
-                    |u| u.user_id == Into::<UserId>::into(discon.user_id),
+                    |u| {
+                        u.user_id == Some(discon.user_id.into())
+                            || u.steam_id == Some(id.clone())
+                            || u.name == Some(discon.name.to_string())
+                    },
                     || UserInfo {
-                        user_id: discon.user_id.into(),
+                        user_id: Some(discon.user_id.into()),
                         steam_id: Some(discon.network_id.to_string()),
                         name: Some(discon.name.to_string()),
                         ..Default::default()
@@ -622,6 +623,8 @@ impl Analyser {
                 self.state.users[suid.0]
                     .connection_events
                     .push((tick, c.value.clone()));
+                self.state.users[suid.0].user_id = None;
+                self.state.users[suid.0].entity_id = None;
                 self.state.events.push(MatchEvent {
                     tick,
                     value: MatchEventType::Connection(c),
@@ -630,9 +633,9 @@ impl Analyser {
             GameEvent::PlayerChangeClass(c) => {
                 let class = Class::new(c.class);
                 let suid = self.stable_user(
-                    |u| u.user_id == c.user_id,
+                    |u| u.user_id == Some(c.user_id.into()),
                     || UserInfo {
-                        user_id: c.user_id.into(),
+                        user_id: Some(c.user_id.into()),
                         ..Default::default()
                     },
                 );
@@ -655,7 +658,7 @@ impl Analyser {
         {
             if user_info.player_info.steam_id == "BOT" {
                 let suid = self.stable_user(
-                    |u| u.user_id == user_info.player_info.user_id,
+                    |u| u.user_id == Some(user_info.player_info.user_id.into()),
                     || (&user_info).into(),
                 );
                 self.state.users.get_mut(suid.0).unwrap().entity_id = Some(user_info.entity_id);
@@ -669,7 +672,7 @@ impl Analyser {
                 );
                 let player = self.state.users.get_mut(suid.0).unwrap();
                 player.entity_id = Some(user_info.entity_id);
-                player.user_id = user_info.player_info.user_id;
+                player.user_id = Some(user_info.player_info.user_id.into());
             }
         }
 
