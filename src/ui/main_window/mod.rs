@@ -295,16 +295,19 @@ impl AsyncComponent for DemoPlayerModel {
 
         let about_wnd = AboutModel::builder().launch(root.clone()).detach();
 
-        let model = Self {
-            demo_manager: Arc::new(Mutex::new(DemoManager::new())),
-            rcon_manager: RconManager::new(settings.clone().borrow().rcon_pw.to_owned()),
-            settings: settings,
-            preferences_wnd: None,
-            about_wnd,
-            demo_list,
-            demo_details,
-            selected_demo: None,
-            loading: None,
+        let model = {
+            let settings_clone = settings.clone().take();
+            Self {
+                demo_manager: Arc::new(Mutex::new(DemoManager::new())),
+                rcon_manager: RconManager::new(&settings_clone.rcon_pw, settings_clone.rcon_port),
+                settings,
+                preferences_wnd: None,
+                about_wnd,
+                demo_list,
+                demo_details,
+                selected_demo: None,
+                loading: None,
+            }
         };
 
         let widgets = view_output!();
@@ -427,7 +430,9 @@ impl AsyncComponent for DemoPlayerModel {
             }
             DemoPlayerMsg::SettingsClosed(settings) => {
                 self.settings.replace(settings);
-                self.rcon_manager = RconManager::new(self.settings.borrow().rcon_pw.clone());
+                let settings_ref = self.settings.borrow();
+                self.rcon_manager =
+                    RconManager::new(&settings_ref.rcon_pw, settings_ref.rcon_port);
                 self.preferences_wnd.take();
             }
             DemoPlayerMsg::ShowSidebar => {

@@ -40,13 +40,15 @@ impl Command<'_> {
 pub struct RconManager {
     conn: Option<Connection<AsyncStdStream>>,
     password: String,
+    port: u16,
 }
 
 impl RconManager {
-    pub fn new(password: String) -> Self {
+    pub fn new(password: &str, port: u16) -> Self {
         RconManager {
             conn: None,
-            password,
+            password: password.to_string(),
+            port,
         }
     }
 
@@ -57,7 +59,7 @@ impl RconManager {
     pub async fn connect(&mut self) -> Result<()> {
         let mut err: Result<()> = Ok(());
         match <Connection<AsyncStdStream>>::builder()
-            .connect("localhost:27015", &self.password)
+            .connect(&format!("localhost:{}", self.port), &self.password)
             .await
         {
             Ok(c) => self.conn = Some(c),

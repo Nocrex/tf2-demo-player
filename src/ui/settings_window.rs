@@ -6,7 +6,7 @@ use crate::{rcon_manager::RconManager, settings::Settings};
 #[derive(Debug)]
 pub enum PreferencesMsg {
     Show,
-    ConnectionTest(String),
+    ConnectionTest(String, u16),
     Close,
 
     DoubleclickPlay(bool),
@@ -14,6 +14,7 @@ pub enum PreferencesMsg {
     EventSkipOffset(f64),
     TF2FolderPath,
     RConPassword(String),
+    RConPort(f64),
 }
 
 #[derive(Debug)]
@@ -108,10 +109,26 @@ impl Component for PreferencesModel {
                     set_title: "RCon",
 
                     adw::PasswordEntryRow {
-                        set_title: "RCon password",
+                        set_title: "Password",
                         set_text: &model.settings.rcon_pw,
                         connect_changed[sender] => move |per|{
                             sender.input(PreferencesMsg::RConPassword(per.text().as_str().to_owned()))
+                        }
+                    },
+
+                    adw::SpinRow {
+                        set_title: "Port",
+                        set_digits: 0,
+                        #[wrap(Some)]
+                        set_adjustment = &gtk::Adjustment {
+                            set_lower: 0.0,
+                            set_upper: u16::MAX as f64,
+                            set_page_increment: 10.0,
+                            set_step_increment: 1.0,
+                            set_value: model.settings.rcon_port.into(),
+                            connect_value_changed[sender] => move |adj| {
+                                sender.input(PreferencesMsg::RConPort(adj.value()));
+                            },
                         }
                     },
 
@@ -127,8 +144,8 @@ impl Component for PreferencesModel {
                             set_label: "Test",
                             #[watch]
                             set_sensitive: !model.connection_test_active,
-                            connect_clicked[sender, pw = model.settings.rcon_pw.clone()] => move |_|{
-                                sender.input(PreferencesMsg::ConnectionTest(pw.clone()))
+                            connect_clicked[sender, pw = model.settings.rcon_pw.clone(), port = model.settings.rcon_port] => move |_|{
+                                sender.input(PreferencesMsg::ConnectionTest(pw.clone(), port))
                             }
                         }
                     }
@@ -156,8 +173,8 @@ impl Component for PreferencesModel {
 
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, root: &Self::Root) {
         match message {
-            PreferencesMsg::ConnectionTest(pw) => sender.oneshot_command(async move {
-                let mut manager = RconManager::new(pw);
+            PreferencesMsg::ConnectionTest(pw,port) => sender.oneshot_command(async move {
+                let mut manager = RconManager::new(&pw,port);
                 let res = manager.connect().await;
                 PreferencesCmd::ConnectionTestResult(match res {
                     Ok(_) => "Connection Successful!".to_owned(),
@@ -182,6 +199,7 @@ impl Component for PreferencesModel {
             PreferencesMsg::PauseAfterSeek(p) => self.settings.pause_after_seek = p,
             PreferencesMsg::EventSkipOffset(off) => self.settings.event_skip_predelay = off as f32,
             PreferencesMsg::RConPassword(pass) => self.settings.rcon_pw = pass,
+            PreferencesMsg::RConPort(port) => self.settings.rcon_port = port as u16,
             PreferencesMsg::TF2FolderPath => {
                 let dia = gtk::FileDialog::new();
                 let initial = self
