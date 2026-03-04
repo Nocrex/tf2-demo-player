@@ -243,6 +243,27 @@ pub struct ChatMessage {
     pub team: Option<Team>,
 }
 
+impl ToString for ChatMessage {
+    fn to_string(&self) -> String {
+        let pfx = match &self.kind {
+            ChatMessageKind::ChatAll => "",
+            ChatMessageKind::ChatTeam => "(TEAM) ",
+            ChatMessageKind::ChatAllDead => "*DEAD* ",
+            ChatMessageKind::ChatTeamDead => "*DEAD* (TEAM) ",
+            ChatMessageKind::ChatAllSpec => "*SPEC* ",
+            ChatMessageKind::Empty | ChatMessageKind::NameChange => "",
+        };
+        format!(
+            "[{}] {}{}: {}",
+            self.team
+                .map_or_else(|| "unknown".to_string(), |t| t.to_string()),
+            pfx,
+            self.from,
+            self.text
+        )
+    }
+}
+
 impl ChatMessage {
     pub fn from_message(message: &SayText2Message, team: Option<Team>) -> Self {
         ChatMessage {
@@ -311,12 +332,73 @@ impl MatchEventType {
             MatchEventType::ClassSwitch(_, _) => "Class Switch",
         }
     }
+
+    fn to_string(&self, users: &[UserInfo]) -> String {
+        match self {
+            MatchEventType::Kill(death) => format!(
+                "\"{}\" was killed by \"{}\" using {}{}",
+                users[death.victim.0]
+                    .name
+                    .as_ref()
+                    .map_or("unknown", |u| u.as_str()),
+                death.killer.map_or("world", |k| users[k.0]
+                    .name
+                    .as_ref()
+                    .map_or("unknown", |u| u.as_str())),
+                death.weapon,
+                match &death.crit_type {
+                    CritType::Mini => " (mini-crit)",
+                    CritType::Full => " (crit)",
+                    CritType::None | CritType::Unknown(_) => "",
+                }
+            ),
+            MatchEventType::RoundEnd(round) => format!("Round won by {}", round.winner),
+            MatchEventType::Chat(chat_message) => chat_message.to_string(),
+            MatchEventType::Connection(connection_event) => match &connection_event.value {
+                ConnectionEventType::Join => format!(
+                    "{} {} connected.",
+                    connection_event.name, connection_event.steamid
+                ),
+                ConnectionEventType::Leave(reason) => format!(
+                    "{} {} disconnected ({})",
+                    connection_event.name, connection_event.steamid, reason
+                ),
+            },
+            MatchEventType::VoteStarted(vote) => format!(
+                "{} called a vote: {}",
+                vote.initiator.as_ref().map_or("unknown", |i| i.as_str()),
+                vote.issue.as_ref().map_or("unknown", |i| i.as_str())
+            ),
+            MatchEventType::TeamSwitch(stable_user_id, team) => format!(
+                "{} switched to team {}",
+                users[stable_user_id.0]
+                    .name
+                    .as_ref()
+                    .map_or("unknown", |u| u.as_str()),
+                team
+            ),
+            MatchEventType::ClassSwitch(stable_user_id, class) => format!(
+                "{} changed class to {}",
+                users[stable_user_id.0]
+                    .name
+                    .as_ref()
+                    .map_or("unknown", |u| u.as_str()),
+                class
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct MatchEvent {
     pub tick: DemoTick,
     pub value: MatchEventType,
+}
+
+impl MatchEvent {
+    pub fn to_string(&self, users: &[UserInfo]) -> String {
+        format!("{}: {}", self.tick, self.value.to_string(users))
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

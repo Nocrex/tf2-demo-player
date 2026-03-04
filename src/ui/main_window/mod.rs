@@ -296,7 +296,7 @@ impl AsyncComponent for DemoPlayerModel {
         let about_wnd = AboutModel::builder().launch(root.clone()).detach();
 
         let model = {
-            let settings_clone = settings.clone().take();
+            let settings_clone = settings.borrow().clone();
             Self {
                 demo_manager: Arc::new(Mutex::new(DemoManager::new())),
                 rcon_manager: RconManager::new(&settings_clone.rcon_pw, settings_clone.rcon_port),
@@ -546,8 +546,7 @@ impl AsyncComponent for DemoPlayerModel {
                 self.demo_manager
                     .lock()
                     .unwrap()
-                    .get_demos_mut()
-                    .insert(name.clone(), demo);
+                    .insert(demo).await;
                 sender.input(DemoPlayerMsg::DemoSelected(Some(name), true));
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
@@ -555,8 +554,7 @@ impl AsyncComponent for DemoPlayerModel {
                 self.demo_manager
                     .lock()
                     .unwrap()
-                    .get_demos_mut()
-                    .insert(demo.filename.clone(), demo);
+                    .insert(demo).await;
             }
             DemoPlayerMsg::FavoriteFolder => {
                 self.settings.borrow_mut().toggle_favorite();

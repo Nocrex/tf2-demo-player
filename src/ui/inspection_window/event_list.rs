@@ -101,6 +101,16 @@ impl EventListFilter {
         self.show_team = false;
         self.show_class = false;
     }
+
+    fn matches(&self, ev: &MatchEventType) -> bool {
+        (self.show_chat && matches!(ev, MatchEventType::Chat(_)))
+            || (self.show_class && matches!(ev, MatchEventType::ClassSwitch(_, _)))
+            || (self.show_connections && matches!(ev, MatchEventType::Connection(_)))
+            || (self.show_deaths && matches!(ev, MatchEventType::Kill(_)))
+            || (self.show_rounds && matches!(ev, MatchEventType::RoundEnd(_)))
+            || (self.show_team && matches!(ev, MatchEventType::TeamSwitch(_, _)))
+            || (self.show_votes && matches!(ev, MatchEventType::VoteStarted(_)))
+    }
 }
 
 #[derive(Debug)]
@@ -108,6 +118,7 @@ pub enum EventViewMsg {
     Filter(EventListFilterChange),
     Show(Option<Arc<MatchState>>, f32),
     Selected(DynamicIndex),
+    SaveEvents,
 }
 pub struct EventViewModel {
     inspection: Option<Arc<MatchState>>,
@@ -119,11 +130,12 @@ pub struct EventViewModel {
     filter: EventListFilter,
 }
 
-#[relm4::component(pub)]
-impl SimpleComponent for EventViewModel {
+#[relm4::component(async pub)]
+impl AsyncComponent for EventViewModel {
     type Init = Option<(Arc<MatchState>, StableUserId)>;
     type Input = EventViewMsg;
     type Output = u32;
+    type CommandOutput = ();
 
     view! {
         gtk::Box{
@@ -133,6 +145,13 @@ impl SimpleComponent for EventViewModel {
                 //#[wrap(Some)]
                 //set_start_widget = &gtk::SearchEntry{
                 //},
+                #[wrap(Some)]
+                set_start_widget = &gtk::Button {
+                    connect_clicked => EventViewMsg::SaveEvents,
+                    set_icon_name: "document-save-symbolic",
+                    set_tooltip_text: Some("Save events to text file"),
+                },
+
                 #[wrap(Some)]
                 set_end_widget = &gtk::Box{
                     add_css_class: "linked",
@@ -197,11 +216,11 @@ impl SimpleComponent for EventViewModel {
         }
     }
 
-    fn init(
+    async fn init(
         _: Self::Init,
         root: Self::Root,
-        sender: ComponentSender<Self>,
-    ) -> ComponentParts<Self> {
+        sender: AsyncComponentSender<Self>,
+    ) -> AsyncComponentParts<Self> {
         let model = Self {
             list_model: FactoryVecDeque::builder()
                 .launch_default()
@@ -224,10 +243,15 @@ impl SimpleComponent for EventViewModel {
 
         let widgets = view_output!();
 
-        ComponentParts { model, widgets }
+        AsyncComponentParts { model, widgets }
     }
 
-    fn update(&mut self, message: Self::Input, _sender: ComponentSender<Self>) {
+    async fn update(
+        &mut self,
+        message: Self::Input,
+        _sender: AsyncComponentSender<Self>,
+        _root: &Self::Root,
+    ) {
         match message {
             EventViewMsg::Filter(event_list_filter) => {
                 match event_list_filter {
@@ -270,6 +294,27 @@ impl SimpleComponent for EventViewModel {
                 ind.current_index(),
                 self.tps,
             )))),
+            EventViewMsg::SaveEvents => {
+                let picker = gtk::FileDialog::builder()
+                    .initial_name("events.txt")
+                    .build();
+                if let Ok(path) = picker.save_future(None::<&gtk::Window>).await {
+                    if let Some(insp) = self.inspection.as_ref() {
+                        let content = insp
+                            .events
+                            .iter()
+                            .filter(|ev| self.filter.matches(&ev.value))
+                            .map(|ev| ev.to_string(&insp.users))
+                            .join("\n");
+                        if let Err(e) = std::fs::write(path.path().unwrap(), content) {
+                            log::warn!(
+                                "Failed to write to file {}: {e}",
+                                path.path().unwrap().display()
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 }

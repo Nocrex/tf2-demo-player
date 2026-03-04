@@ -18,7 +18,7 @@ pub struct InspectionModel {
     demo: Demo,
 
     player_factories: HashMap<Team, FactoryVecDeque<PlayerRowModel>>,
-    event_view: Controller<EventViewModel>,
+    event_view: AsyncController<EventViewModel>,
 }
 
 #[derive(Debug)]

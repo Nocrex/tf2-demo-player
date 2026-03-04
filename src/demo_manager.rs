@@ -294,7 +294,11 @@ impl DemoManager {
             self.cache.entry(demo.path.clone()).or_insert(demo.clone());
             progress_cb(i + 2, total);
         }
-        if let Err(e) = fs::write("demos.cache", bitcode::serialize(&self.cache).unwrap()) {
+        pollster::block_on(self.update_cache());
+    }
+
+    async fn update_cache(&self) {
+        if let Err(e) = async_std::fs::write("demos.cache", bitcode::serialize(&self.cache).unwrap()).await {
             log::warn!("Failed to save cache file: {e:?}");
         }
     }
@@ -307,8 +311,10 @@ impl DemoManager {
         &self.demos
     }
 
-    pub fn get_demos_mut(&mut self) -> &mut HashMap<String, Demo> {
-        &mut self.demos
+    pub async fn insert(&mut self, demo: Demo) {
+        self.cache.insert(demo.path.clone(), demo.clone());
+        self.demos.insert(demo.filename.clone(), demo);
+        self.update_cache().await;
     }
 
     pub async fn delete_demo(&mut self, name: &str) {
