@@ -431,8 +431,7 @@ impl AsyncComponent for DemoPlayerModel {
             DemoPlayerMsg::SettingsClosed(settings) => {
                 self.settings.replace(settings);
                 let settings_ref = self.settings.borrow();
-                self.rcon_manager =
-                    RconManager::new(&settings_ref.rcon_pw, settings_ref.rcon_port);
+                self.rcon_manager = RconManager::new(&settings_ref.rcon_pw, settings_ref.rcon_port);
                 self.preferences_wnd.take();
             }
             DemoPlayerMsg::ShowSidebar => {
@@ -543,18 +542,12 @@ impl AsyncComponent for DemoPlayerModel {
             DemoPlayerMsg::DemoSave(demo) => {
                 let name = demo.filename.clone();
                 demo.save_json().await;
-                self.demo_manager
-                    .lock()
-                    .unwrap()
-                    .insert(demo).await;
+                self.demo_manager.lock().unwrap().insert(demo).await;
                 sender.input(DemoPlayerMsg::DemoSelected(Some(name), true));
                 sender.input(DemoPlayerMsg::DemosChanged(false));
             }
             DemoPlayerMsg::DemoUpdate(demo) => {
-                self.demo_manager
-                    .lock()
-                    .unwrap()
-                    .insert(demo).await;
+                self.demo_manager.lock().unwrap().insert(demo).await;
             }
             DemoPlayerMsg::FavoriteFolder => {
                 self.settings.borrow_mut().toggle_favorite();

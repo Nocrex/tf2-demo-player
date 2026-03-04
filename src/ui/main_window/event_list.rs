@@ -2,8 +2,8 @@ use adw::prelude::*;
 use gtk::gio;
 use relm4::prelude::*;
 
-use crate::demo_manager::{Demo, Event};
 use super::event_object::EventObject;
+use crate::demo_manager::{Demo, Event};
 
 #[derive(Debug)]
 pub enum EventListOut {

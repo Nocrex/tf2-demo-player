@@ -298,7 +298,9 @@ impl DemoManager {
     }
 
     async fn update_cache(&self) {
-        if let Err(e) = async_std::fs::write("demos.cache", bitcode::serialize(&self.cache).unwrap()).await {
+        if let Err(e) =
+            async_std::fs::write("demos.cache", bitcode::serialize(&self.cache).unwrap()).await
+        {
             log::warn!("Failed to save cache file: {e:?}");
         }
     }

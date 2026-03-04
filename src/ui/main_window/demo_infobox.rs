@@ -188,7 +188,7 @@ impl Component for DemoInfoboxModel {
                 }
 
                 let _ = sender.output(DemoInfoboxOut::Dirty(
-                        new_notes.as_ref() != self.demo.as_ref().and_then(|d| d.notes.as_ref()),
+                    new_notes.as_ref() != self.demo.as_ref().and_then(|d| d.notes.as_ref()),
                 ));
 
                 self.notes = new_notes;

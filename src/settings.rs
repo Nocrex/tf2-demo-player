@@ -31,7 +31,7 @@ impl Default for Settings {
             event_skip_predelay: 30.0,
             doubleclick_play: false,
             pause_after_seek: true,
-            favorited_folders: tf_folder.map_or_else(||Vec::new(), |f|vec![f]),
+            favorited_folders: tf_folder.map_or_else(|| Vec::new(), |f| vec![f]),
 
             first_launch: false,
         }
@@ -73,11 +73,11 @@ impl Settings {
             self.save();
         }
     }
-    
+
     pub fn favorited(&self) -> bool {
         if let Some(path) = &self.demo_folder_path {
             self.favorited_folders.contains(path)
-        }else{
+        } else {
             false
         }
     }

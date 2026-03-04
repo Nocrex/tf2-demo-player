@@ -173,8 +173,8 @@ impl Component for PreferencesModel {
 
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, root: &Self::Root) {
         match message {
-            PreferencesMsg::ConnectionTest(pw,port) => sender.oneshot_command(async move {
-                let mut manager = RconManager::new(&pw,port);
+            PreferencesMsg::ConnectionTest(pw, port) => sender.oneshot_command(async move {
+                let mut manager = RconManager::new(&pw, port);
                 let res = manager.connect().await;
                 PreferencesCmd::ConnectionTestResult(match res {
                     Ok(_) => "Connection Successful!".to_owned(),
