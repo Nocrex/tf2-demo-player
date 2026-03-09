@@ -219,7 +219,7 @@ impl AsyncComponent for DemoPlayerModel {
                     },
 
                     #[wrap(Some)]
-                    set_content: pane = &gtk::Paned{
+                    set_content = &gtk::Paned{
                         set_orientation: gtk::Orientation::Vertical,
                         set_position: 400,
                         set_shrink_end_child: false,

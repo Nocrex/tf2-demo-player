@@ -23,15 +23,16 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         let tf_folder = util::steam::tf_folder();
+        let demos_folder = tf_folder.clone().map(|p| p.join("tf/demos"));
         Self {
-            demo_folder_path: tf_folder.clone().map(|p| p.join("tf/demos")),
+            demo_folder_path: demos_folder.clone(),
             tf_folder_path: tf_folder.clone(),
             rcon_pw: Default::default(),
             rcon_port: 27015,
             event_skip_predelay: 30.0,
             doubleclick_play: false,
             pause_after_seek: true,
-            favorited_folders: tf_folder.map_or_else(|| Vec::new(), |f| vec![f]),
+            favorited_folders: demos_folder.map_or_else(|| Vec::new(), |f| vec![f]),
 
             first_launch: false,
         }
