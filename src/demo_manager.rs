@@ -183,13 +183,13 @@ impl Demo {
         let replay_demo_path = replays_folder.join(&self.filename);
         fs::copy(&self.path, &replay_demo_path)?;
 
-        let mut replay_handle: u32 = rand::thread_rng().gen();
+        let mut replay_handle: u32 = rand::thread_rng().gen_range(0..i32::MAX as u32);
         while replays_folder
             .join(format!("replay_{replay_handle}.dmx"))
             .exists()
             .await
         {
-            replay_handle = rand::thread_rng().gen();
+            replay_handle = rand::thread_rng().gen_range(0..i32::MAX as u32);
         }
 
         let create_date: chrono::DateTime<chrono::Local> =
