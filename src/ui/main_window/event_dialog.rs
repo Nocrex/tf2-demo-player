@@ -81,7 +81,7 @@ impl Component for EventDialogModel {
                             #[track = "model.changed"]
                             set_value: model.params.event.tick.into(),
                             #[track = "model.changed"]
-                            set_upper:model.params.length as f64,
+                            set_upper: if model.params.length > 0 { model.params.length as f64 } else { f64::MAX },
                             set_lower: 0.0,
                             connect_value_changed[sender] => move |adj|{
                                 sender.input(EventDialogMsg::TickChanged(adj.value() as u32));

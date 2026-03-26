@@ -170,6 +170,7 @@ impl Demo {
         self.header
             .as_ref()
             .map(|h| h.ticks as f32 / h.duration)
+            .map(|tps| if tps.is_finite() { tps } else { Demo::TICKRATE })
             .unwrap_or(Demo::TICKRATE)
     }
 
