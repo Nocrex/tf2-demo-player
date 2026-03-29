@@ -277,7 +277,7 @@ impl DemoManager {
         folder_path: impl Into<std::path::PathBuf>,
         progress_cb: impl Fn(usize, usize),
     ) {
-        let folder_path: std::path::PathBuf = folder_path.into().canonicalize().unwrap();
+        let folder_path: std::path::PathBuf = std::path::absolute(&folder_path.into()).unwrap();
         self.demos.clear();
         for path in glob(&format!("{}/*.dem", folder_path.display().to_string())).unwrap() {
             let path = path.unwrap();
